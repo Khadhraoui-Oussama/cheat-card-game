@@ -13,11 +13,12 @@ import {
 } from "react-bootstrap";
 import { GameContext } from "../contexts/GameContext";
 import { PlayerContext } from "../contexts/PlayerContext";
+import { Link } from "react-router-dom";
 
 const GameOptionsSelect = () => {
 	const [isPasswordVisible, setIsPassowrdVisible] = useState(false);
 	//const {} = useContext(GameContext);
-	const { setIsOpen } = useContext(PlayerContext);
+	const { setIsOpen, setPlayer } = useContext(PlayerContext);
 
 	return (
 		<Stack className="popup-container">
@@ -64,9 +65,17 @@ const GameOptionsSelect = () => {
 							<Stack direction="horizontal">
 								<Button onClick={() => setIsOpen(false)}>Cancel</Button>
 
-								<Button onClick={() => console.log("going to game waiting area")}>
-									Play Now
-								</Button>
+								<Link
+									to="/wa"
+									onClick={() => console.log("going to game waiting area")}>
+									<Button
+										onClick={() => {
+											setPlayer({ name: "", gender: "male", avatar: "" });
+											setIsOpen(false);
+										}}>
+										Play Now
+									</Button>
+								</Link>
 							</Stack>
 						</Col>
 					</Stack>

@@ -6,5 +6,5 @@ export const GameContextProvider = ({ children }) => {
 	//
 	//
 
-	return <GameContext.Provider>{children}</GameContext.Provider>;
+	return <GameContext.Provider value={{}}>{children}</GameContext.Provider>;
 };
