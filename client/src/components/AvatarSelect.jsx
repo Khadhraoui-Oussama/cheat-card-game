@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { PlayerContext } from "../contexts/PlayerContext";
 import "bootstrap/dist/css/bootstrap.min.css";
 
@@ -13,13 +13,21 @@ const AvatarSelect = () => {
 	for (let index = 1; index < 13; index++) {
 		avatarList.push(`../src/assets/avatars/${prefix}${index}.svg`);
 	}
+
+	const { selectedAvatarPath, setSelectedAvatarPath } = useContext(PlayerContext);
+
+	let bg_color;
 	return avatarList.map((imagePath, indexKey) => {
+		bg_color = imagePath === selectedAvatarPath ? "bg-success" : "";
 		return (
 			<Col
 				xs={-1}
 				key={indexKey}
-				onClick={() => setPlayer({ ...player, avatar: imagePath.substring(22) })}
-				className="bg-warning m-1 rounded-3"
+				onClick={() => {
+					setPlayer({ ...player, avatar: imagePath.substring(22) });
+					setSelectedAvatarPath(imagePath);
+				}}
+				className={`${bg_color} m-1 rounded-3`}
 				style={{ cursor: "pointer" }}>
 				<Image className="rounded-3 " src={imagePath} width={40} />
 			</Col>

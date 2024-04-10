@@ -5,18 +5,21 @@ import GameRoom from "./pages/GameRoom";
 import GameSettings from "./pages/GameSettings";
 import Tutorial from "./pages/Tutorial";
 import { PlayerContextProvider } from "./contexts/PlayerContext";
+import { GameContextProvider } from "./contexts/GameContext";
 
 function App() {
 	return (
 		<PlayerContextProvider>
-			<Routes>
-				<Route path="/" element={<GameLobby />} />
-				<Route path="/play" element={<GameRoom />} />
-				<Route path="/settings" element={<GameSettings />} />
-				<Route path="/feedback" element={<FeedBack />} />
-				<Route path="/tutorial" element={<Tutorial />} />
-				<Route path="/*" element={<Navigate to="/" />} />
-			</Routes>
+			<GameContextProvider>
+				<Routes>
+					<Route path="/" element={<GameLobby />} />
+					<Route path="/play" element={<GameRoom />} />
+					<Route path="/settings" element={<GameSettings />} />
+					<Route path="/feedback" element={<FeedBack />} />
+					<Route path="/tutorial" element={<Tutorial />} />
+					<Route path="/*" element={<Navigate to="/" />} />
+				</Routes>
+			</GameContextProvider>
 		</PlayerContextProvider>
 	);
 }

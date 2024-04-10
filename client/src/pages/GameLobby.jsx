@@ -1,61 +1,61 @@
-import AvatarSelect from "../components/AvatarSelect";
 import "../index.css";
 import { useContext, useState } from "react";
 import { PlayerContext } from "../contexts/PlayerContext";
-import { Container, Row, Stack } from "react-bootstrap";
+import { Alert, Col, Container, Row, Stack } from "react-bootstrap";
 import GameOptionsSelect from "../components/GameOptionsSelect";
+import PlayerInfoSelect from "../components/PlayerInfoSelect";
+import JoinGameSection from "../components/JoinGameSection";
+import LobbyFooter from "../components/LobbyFooter";
+import { Popup } from "reactjs-popup";
 
 const GameLobby = () => {
-	const { player, setPlayer } = useContext(PlayerContext);
-	const [isCreateGame, setIsCreateGame] = useState(false);
+	const {
+		player,
+		setPlayer,
+		isCreateGame,
+		validatePLayerInfo,
+		openPopup,
+		setIsOpen,
+		isOpen,
+		inputError,
+	} = useContext(PlayerContext);
+
+	//state for name alert show up avatar select
+
+	console.log("isOpen", isOpen);
+	console.log("inputError", inputError);
 	return (
-		<Stack>
-			<p>Player Name</p>
-			<input
-				type="text"
-				name="player-name"
-				id="player-name"
-				placeholder="Choose you name"
-				onChange={(e) => setPlayer({ ...player, name: e.target.value })}
-			/>
-			<p>Choose you avatar</p>
-			<label>
-				<input
-					id="male"
-					name="gender"
-					type="radio"
-					value="male"
-					defaultChecked
-					onChange={(e) => setPlayer({ ...player, gender: e.target.value })}
-				/>
-				Male
-			</label>
-			<label>
-				<input
-					id="female"
-					name="gender"
-					type="radio"
-					value="female"
-					onChange={(e) => setPlayer({ ...player, gender: e.target.value })}
-				/>
-				Female
-			</label>
-			<Stack direction="horizontal">
-				<AvatarSelect />
-			</Stack>
-			<div>
-				<button onClick={() => setIsCreateGame((prev) => !prev)}>Create a game</button>
-				<input type="text" placeholder="game room code" />
-				<button>Join using code</button>
-			</div>
-			<div>
-				<button>How To Play</button>
-				<button>Contact us</button>
-				<button>Language</button>
-				<button>Settings</button>
-			</div>
-			{isCreateGame && <GameOptionsSelect className="popup" />}
-		</Stack>
+		<Container>
+			<Col>
+				<Stack
+					className="flex justify-items-center align-items-center vh-100 "
+					style={{ border: "solid 2px blue" }}>
+					<Stack
+						gap={1}
+						style={{ width: "45%", maxHeight: "90vh", border: "solid 2px red" }}
+						className="m-auto pt-2">
+						<PlayerInfoSelect />
+						<JoinGameSection />
+						<button onClick={() => openPopup()}> Create a new game </button>
+						<Popup
+							open={isOpen}
+							modal
+							nested
+							position="center"
+							onClose={() => setIsOpen(false)}>
+							<GameOptionsSelect />
+						</Popup>
+						<LobbyFooter />
+						{inputError && (
+							<Alert key="danger" variant="danger">
+								Some input fields are missing , please Make sure to select an avatar
+								and choose a name between 3 and 20 characters
+							</Alert>
+						)}
+					</Stack>
+				</Stack>
+			</Col>
+		</Container>
 	);
 };
 

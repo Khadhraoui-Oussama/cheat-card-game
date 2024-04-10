@@ -2,7 +2,6 @@
    v2.0 | 20110126
    License: none (public domain)
 */
-
 html,
 body,
 div,
@@ -91,7 +90,7 @@ video {
 	font: inherit;
 	vertical-align: baseline;
 }
-/* HTML5 display-role reset for older browsers */
+
 article,
 aside,
 details,
@@ -105,17 +104,21 @@ nav,
 section {
 	display: block;
 }
+
 body {
 	line-height: 1;
 }
+
 ol,
 ul {
 	list-style: none;
 }
+
 blockquote,
 q {
 	quotes: none;
 }
+
 blockquote:before,
 blockquote:after,
 q:before,
@@ -123,7 +126,32 @@ q:after {
 	content: "";
 	content: none;
 }
+
 table {
 	border-collapse: collapse;
 	border-spacing: 0;
 }
+
+/* popup for creating a game  */
+.popup {
+	background-color: #2A2F4F;
+	border: yellow solid 3px;
+	color: antiquewhite;
+	width: 50vw;
+	max-width: 800px;
+}
+
+/* .popup-container {
+	display: flex;
+	background-color: aquamarine;
+	inset: 0;
+	position: fixed;
+
+} */
+
+/*
+#2A2F4F
+#917FB3
+#E5BEEC
+#FDE2F3
+*/
