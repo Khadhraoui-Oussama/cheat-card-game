@@ -11,7 +11,7 @@ const AvatarSelect = () => {
 	const avatarList = [];
 
 	for (let index = 1; index < 13; index++) {
-		avatarList.push(`../src/assets/avatars/${prefix}${index}.svg`);
+		avatarList.push(`/client/src/assets/avatars/${prefix}${index}.svg`);
 	}
 
 	const { selectedAvatarPath, setSelectedAvatarPath } = useContext(PlayerContext);
