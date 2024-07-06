@@ -48,14 +48,14 @@ const GameOptionsSelect = () => {
 									onClick={() => setIsPassowrdVisible((prev) => !prev)}>
 									{isPasswordVisible && (
 										<img
-											src="./src/assets/password_icons/eye-slash-solid.png"
+											src="/client/public/assets/password_icons/eye-slash-solid.png"
 											width={25}
 											height={20}
 										/>
 									)}
 									{!isPasswordVisible && (
 										<img
-											src="./src/assets/password_icons/eye-solid.png"
+											src="/client/public/assets/password_icons/eye-solid.png"
 											height={20}
 											width={25}
 										/>

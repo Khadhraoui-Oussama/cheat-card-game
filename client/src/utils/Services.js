@@ -1,4 +1,4 @@
-export const baseurl = "http://localhost:5000/api";
+export const baseurl = "https://card-game-zcy5.onrender.com/api";
 
 export const postRequest = async (url, body) => {
 	const response = await fetch(url, {
