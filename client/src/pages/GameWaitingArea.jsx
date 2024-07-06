@@ -1,5 +1,4 @@
 import { Stack, Container, Col, Row, Button, Card, Placeholder } from "react-bootstrap";
-import { redirect } from "react-router-dom";
 
 const GameWaitingArea = () => {
 	return (
@@ -12,7 +11,7 @@ const GameWaitingArea = () => {
 				<Row className="w-100">
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="./src/assets/avatars/m10.svg" />
+							<Card.Img src="./src/assets/avatars/m1.svg" />
 
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
@@ -21,7 +20,7 @@ const GameWaitingArea = () => {
 					</Col>
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="./src/assets/avatars/w12.svg" />
+							<Card.Img src="./src/assets/classic/AC.svg" />
 
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
