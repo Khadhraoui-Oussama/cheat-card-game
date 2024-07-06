@@ -16,7 +16,7 @@ const app = express();
 const server = createServer(app);
 
 app.use(express.json());
-const allowedOrigins = ["https://peaceful-belekoy-baab5b.netlify.app", "*"];
+const allowedOrigins = ["https://superb-kulfi-fa8c06.netlify.app/", "*"];
 
 const corsOptions = {
 	origin: function (origin, callback) {
