@@ -3,21 +3,22 @@ import express from "express";
 import { createServer } from "node:http";
 import cors from "cors";
 import mongoose from "mongoose";
+import path from "node:path";
+import { fileURLToPath } from "url";
 
 import playerRouter from "./Routes/playerRoute.js";
 import gameStateRouter from "./Routes/gameStateRoute.js";
 import gameRoomRouter from "./Routes/gameRoomRoute.js";
 import gameConfigurationRouter from "./Routes/gameConfigurationRoute.js";
-import path from "node:path";
 
-//configure env variables
+// Configure env variables
 dotenv.config();
 
 const app = express();
 const server = createServer(app);
 
 app.use(express.json());
-app.use("/static", express.static(path.join(__dirname, "public")));
+
 // const allowedOrigins = ["https://superb-kulfi-fa8c06.netlify.app/", "*"];
 
 // const corsOptions = {
@@ -32,6 +33,13 @@ app.use("/static", express.static(path.join(__dirname, "public")));
 
 // app.use(cors(corsOptions));
 
+// Equivalent of __dirname in ES module scope
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static files from the public directory
+app.use("/static", express.static(path.join(__dirname, "public")));
+
 const port = process.env.PORT || 5000;
 const uri = process.env.ATLAS_URI;
 
@@ -39,7 +47,7 @@ app.get("/", (req, res) => {
 	res.send("You have reached the card game API...");
 });
 
-server.listen(port, (req, res) => {
+server.listen(port, () => {
 	console.log(`Server running on port ${port}`);
 });
 
@@ -50,5 +58,5 @@ app.use("/api/gameConfig", gameConfigurationRouter);
 
 mongoose
 	.connect(uri)
-	.then(() => console.log("MongoDB connection established !"))
-	.catch((error) => console.log("MongoDB connection failed ,", error.message));
+	.then(() => console.log("MongoDB connection established!"))
+	.catch((error) => console.log("MongoDB connection failed,", error.message));
