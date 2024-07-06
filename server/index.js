@@ -8,6 +8,7 @@ import playerRouter from "./Routes/playerRoute.js";
 import gameStateRouter from "./Routes/gameStateRoute.js";
 import gameRoomRouter from "./Routes/gameRoomRoute.js";
 import gameConfigurationRouter from "./Routes/gameConfigurationRoute.js";
+import path from "node:path";
 
 //configure env variables
 dotenv.config();
@@ -16,6 +17,7 @@ const app = express();
 const server = createServer(app);
 
 app.use(express.json());
+app.use("/static", express.static(path.join(__dirname, "public")));
 // const allowedOrigins = ["https://superb-kulfi-fa8c06.netlify.app/", "*"];
 
 // const corsOptions = {

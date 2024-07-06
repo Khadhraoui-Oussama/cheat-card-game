@@ -11,7 +11,7 @@ const GameWaitingArea = () => {
 				<Row className="w-100">
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/avatars/m1.svg" />
+							<Card.Img src="/client/public/m1.svg" />
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
 							</Placeholder>
@@ -30,7 +30,7 @@ const GameWaitingArea = () => {
 				<Row className="w-100">
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/avatars/w10.svg" />
+							<Card.Img src="/client/public/w10.svg" />
 
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
@@ -39,7 +39,7 @@ const GameWaitingArea = () => {
 					</Col>
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/avatars/m1.svg" />
+							<Card.Img src="/client/public/m1.svg" />
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
 							</Placeholder>
