@@ -16,7 +16,19 @@ const app = express();
 const server = createServer(app);
 
 app.use(express.json());
-app.use(cors());
+const allowedOrigins = ["https://cool-crostata-571f94.netlify.app"];
+
+const corsOptions = {
+	origin: function (origin, callback) {
+		if (allowedOrigins.includes(origin)) {
+			callback(null, true);
+		} else {
+			callback(new Error("Not allowed by CORS"));
+		}
+	},
+};
+
+app.use(cors(corsOptions));
 
 const port = process.env.PORT || 5000;
 const uri = process.env.ATLAS_URI;
