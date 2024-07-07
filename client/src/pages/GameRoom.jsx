@@ -10,7 +10,7 @@ const GameRoom = () => {
 		useContext(PlayerContext);
 	//initialize socket
 	useEffect(() => {
-		const newSocket = io(); // same port the socket.io server will listen to ,change if needed
+		const newSocket = io("https://card-game-zcy5.onrender.com"); // same port the socket.io server will listen to ,change if needed
 		setSocket(newSocket);
 		//cleanup function for when we are no longer using the socket or we aretrying to reconnect
 		return () => {
