@@ -19,7 +19,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: "https://superb-kulfi-fa8c06.netlify.app/",
+		origin: "*",
 		methods: ["GET", "POST"],
 	},
 });
