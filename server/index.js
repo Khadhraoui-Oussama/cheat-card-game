@@ -97,10 +97,15 @@ io.on("connection", (socket) => {
 		}
 	});
 
+	socket.on("changeColor", () => {
+		io.emit("changeColor");
+	});
+
 	socket.on("disconnect", () => {
-		console.log(`User disconnected: ${socket.id}`, players);
-		players = players.filter((player) => player.id !== socket.id);
-		io.emit("playerLeft", players);
+		console.log(`User disconnected: ${socket.id}`);
+		onlineUsers = onlineUsers.filter((user) => user.socketId !== socket.id);
+		io.emit("getOnlineUsers", onlineUsers);
+		console.log("User left: onlineUsers", onlineUsers);
 	});
 
 	function nextTurn() {

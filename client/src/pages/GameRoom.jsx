@@ -13,6 +13,7 @@ const GameRoom = () => {
 		const newSocket = io("https://card-game-zcy5.onrender.com"); // same port the socket.io server will listen to ,change if needed
 		setSocket(newSocket);
 		//cleanup function for when we are no longer using the socket or we aretrying to reconnect
+
 		return () => {
 			if (newSocket) {
 				newSocket.emit("removeUser", player);
@@ -46,7 +47,7 @@ const GameRoom = () => {
 				return (
 					<div className="playerBox" key={user.name}>
 						<p>{user.name}</p>
-						<img src={`/${user.avatar}`}></img>
+						<img src={`/avatars/${user.avatar}`}></img>
 					</div>
 				);
 			})}
