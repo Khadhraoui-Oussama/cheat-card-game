@@ -5,6 +5,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import path from "node:path";
 import { fileURLToPath } from "url";
+import { Server } from "socket.io";
 
 import playerRouter from "./Routes/playerRoute.js";
 import gameStateRouter from "./Routes/gameStateRoute.js";
@@ -16,7 +17,12 @@ dotenv.config();
 
 const app = express();
 const server = createServer(app);
-
+const io = new Server(server, {
+	cors: {
+		origin: "https://superb-kulfi-fa8c06.netlify.app/",
+		methods: ["GET", "POST"],
+	},
+});
 app.use(express.json());
 
 // const allowedOrigins = ["https://superb-kulfi-fa8c06.netlify.app/", "*"];
@@ -34,11 +40,12 @@ app.use(express.json());
 // app.use(cors(corsOptions));
 
 // Equivalent of __dirname in ES module scope
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Serve static files from the public directory
-app.use("/static", express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public")));
 
 const port = process.env.PORT || 5000;
 const uri = process.env.ATLAS_URI;
@@ -46,8 +53,74 @@ const uri = process.env.ATLAS_URI;
 app.get("/", (req, res) => {
 	res.send("You have reached the card game API...");
 });
+let onlineUsers = [];
+io.on("connection", (socket) => {
+	console.log("a user connected", socket.id);
 
-server.listen(port, () => {
+	socket.on("addNewUser", (player) => {
+		if (
+			player.name &&
+			player.avatar &&
+			!onlineUsers.some((user) => user.name === player.name)
+		) {
+			onlineUsers.push(player);
+		}
+		console.log("User joined : onlineUsers", onlineUsers);
+		io.emit("getOnlineUsers", onlineUsers);
+	});
+
+	socket.on("removeUser", (player) => {
+		const index = onlineUsers.findIndex((user) => user.name === player.name);
+		if (index !== -1) {
+			onlineUsers.splice(index, 1);
+		}
+		io.emit("getOnlineUsers", onlineUsers);
+		console.log("User left : onlineUsers", onlineUsers);
+	});
+	let players = [];
+	let turn = 0;
+	socket.on("joinGame", (player) => {
+		players.push({ ...player, isTurn: players.length === 0 }); // First player starts
+		socket.emit("startGame", { firstTurn: turn });
+		io.emit("playerJoined", players);
+	});
+
+	socket.on("boxClicked", ({ box, player }) => {
+		io.emit("boxClicked", { box, player });
+		const winner = determineWinner(player, box);
+		if (winner) {
+			io.emit("gameWinner", winner);
+			players = []; // Reset players for new game
+		} else {
+			nextTurn();
+			io.emit("nextTurn", { turn: players[turn].id });
+		}
+	});
+
+	socket.on("disconnect", () => {
+		console.log(`User disconnected: ${socket.id}`, players);
+		players = players.filter((player) => player.id !== socket.id);
+		io.emit("playerLeft", players);
+	});
+
+	function nextTurn() {
+		turn = (turn + 1) % players.length;
+	}
+
+	function determineWinner(player, box) {
+		// Find the opponent's index
+		const opponentIndex = players.findIndex((p) => p.id !== player.id);
+
+		// Check if the opponent guessed correctly
+		if (opponentIndex !== -1 && players[opponentIndex].guess === box) {
+			return players[opponentIndex]; // Opponent wins
+		} else {
+			return null; // No winner yet
+		}
+	}
+});
+
+io.listen(port, () => {
 	console.log(`Server running on port ${port}`);
 });
 
