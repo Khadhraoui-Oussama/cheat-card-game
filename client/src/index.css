@@ -141,6 +141,26 @@ table {
 	max-width: 800px;
 }
 
+.playerBox {
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid #ccc;
+	padding: 10px;
+	margin: 10px 0;
+	border-radius: 5px;
+}
+
+.playerBox p {
+	margin: 0 10px 0 0;
+}
+
+.playerBox img {
+	width: 50px;
+	height: 50px;
+	border-radius: 50%;
+}
+
+
 /* .popup-container {
 	display: flex;
 	background-color: aquamarine;

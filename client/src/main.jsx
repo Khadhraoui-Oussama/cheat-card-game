@@ -3,9 +3,14 @@ import ReactDOM from "react-dom/client";
 import App from "../src/App.jsx";
 import "../src/index.css";
 import { BrowserRouter } from "react-router-dom";
+import { PlayerContextProvider } from "./contexts/PlayerContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-	<BrowserRouter>
-		<App />
-	</BrowserRouter>
+	<React.StrictMode>
+		<BrowserRouter>
+			<PlayerContextProvider>
+				<App />
+			</PlayerContextProvider>
+		</BrowserRouter>
+	</React.StrictMode>
 );

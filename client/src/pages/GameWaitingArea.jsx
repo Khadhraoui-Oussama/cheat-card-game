@@ -1,4 +1,5 @@
 import { Stack, Container, Col, Row, Button, Card, Placeholder } from "react-bootstrap";
+import { Link } from "react-router-dom";
 
 const GameWaitingArea = () => {
 	return (
@@ -11,7 +12,7 @@ const GameWaitingArea = () => {
 				<Row className="w-100">
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/m1.svg" />
+							<Card.Img src="/m1.svg" />
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
 							</Placeholder>
@@ -19,7 +20,7 @@ const GameWaitingArea = () => {
 					</Col>
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/classic/AC.svg" />
+							<Card.Img src="/classic/AC.svg" />
 
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
@@ -30,7 +31,7 @@ const GameWaitingArea = () => {
 				<Row className="w-100">
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/w10.svg" />
+							<Card.Img src="/w10.svg" />
 
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
@@ -39,7 +40,7 @@ const GameWaitingArea = () => {
 					</Col>
 					<Col>
 						<Card className="w-50 m-auto">
-							<Card.Img src="/client/public/m1.svg" />
+							<Card.Img src="/m1.svg" />
 							<Placeholder as={Card.Title} animation="glow">
 								<Placeholder className="w-100 bg-warning" />
 							</Placeholder>
@@ -48,7 +49,15 @@ const GameWaitingArea = () => {
 				</Row>
 				<Row className=" w-100 ">
 					<Col>
-						<Button className="m-auto w-100">Play Now</Button>
+						<Link to="/play">
+							<Button
+								className="m-auto w-100"
+								onClick={() => {
+									console.log("playing game");
+								}}>
+								Play Now
+							</Button>
+						</Link>
 					</Col>
 					<Col className="m-auto text-center ">
 						<span className="m-auto w-100">2/4</span>
