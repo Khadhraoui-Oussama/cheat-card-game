@@ -13,13 +13,13 @@ const PlayerInfoSelect = () => {
 				type="text"
 				name="player-name"
 				id="player-name"
-				placeholder="Choose you name"
+				placeholder="Choose your name"
 				onChange={(e) => {
 					setPlayer({ ...player, name: e.target.value });
 					setSelectedAvatarPath("");
 				}}
 			/>
-			<p>Choose you avatar</p>
+			<p>Choose your avatar</p>
 			<Stack direction="horizontal">
 				<label>
 					<input
@@ -48,7 +48,7 @@ const PlayerInfoSelect = () => {
 					Female
 				</label>
 			</Stack>
-			<Stack direction="horizontal" className="mx-auto w-50 flex-wrap ">
+			<Stack direction="horizontal" className="mx-auto w-100 flex-wrap ">
 				<AvatarSelect />
 			</Stack>
 		</>

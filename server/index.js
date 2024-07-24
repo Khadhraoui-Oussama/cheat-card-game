@@ -15,125 +15,119 @@ import gameConfigurationRouter from "./Routes/gameConfigurationRoute.js";
 // Configure env variables
 dotenv.config();
 
-const app = express();
-const server = createServer(app);
-const io = new Server(server, {
+const app = express(); // make an express app
+
+const expressServer = createServer(app);
+/* This line creates an HTTP server using the createServer method from the http module, with app (an Express application instance) as the request handler.
+It essentially sets up an HTTP server that uses the Express application to handle incoming requests. */
+
+const port = process.env.PORT || 5000; //this is for just for deployment (the backend hosting platform will assign us a random port number)
+expressServer.listen(port, () => {
+	console.log(`HTTP Server running on port ${port}`);
+});
+
+const io = new Server(expressServer, {
 	cors: {
 		origin: "*",
 		methods: ["GET", "POST"],
 	},
-});
-app.use(express.json());
+}); /* This line creates a new instance of a Socket.IO Server (io) that is attached to the previously created HTTP server (expressServer).
+The configuration object passed to the Server constructor sets up Cross-Origin Resource Sharing (CORS) to allow requests from any origin (origin: "*") and to permit only GET and POST methods.*/
 
-// const allowedOrigins = ["https://superb-kulfi-fa8c06.netlify.app/", "*"];
-
-// const corsOptions = {
-// 	origin: function (origin, callback) {
-// 		if (allowedOrigins.includes(origin)) {
-// 			callback(null, true);
-// 		} else {
-// 			callback(new Error("Not allowed by CORS"));
-// 		}
-// 	},
-// };
-
-// app.use(cors(corsOptions));
-
-// Equivalent of __dirname in ES module scope
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve static files from the public directory
-app.use(express.static(path.join(__dirname, "public")));
-
-const port = process.env.PORT || 5000;
 const uri = process.env.ATLAS_URI;
 
 app.get("/", (req, res) => {
 	res.send("You have reached the card game API...");
 });
-let onlineUsers = [];
+
+let onlineUsers = {};
+//LETS TALK FOR A SECOND
+/*
+ I NEED TO STORE ONLINEUSERS IN A DICTIONNARY TYPE DATA DTRUCT WHERE THE KEY IS THE ROOMCODE AND THE VALUE IS AN ARRAY OF THE PLAYER OBJECTS THAT ARE IN THE ROOM
+*/
+
 io.on("connection", (socket) => {
-	console.log("a user connected", socket.id);
+	socket.on("joinRoom", (dataArray) => {
+		/*	in data array 
+			dataArray[0] = roomCode
+			dataArray[1] = socket.id
+			dataArray[2] = playerNewObj which only has { name: player.name, avatar: player.avatar } (ie no gender we dont need it anymore we only added it to make the avatarSelection easier)
 
-	socket.on("addNewUser", (player) => {
-		if (
-			player.name &&
-			player.avatar &&
-			!onlineUsers.some((user) => user.name === player.name)
-		) {
-			onlineUsers.push(player);
+		*/
+		socket.join(dataArray[0]);
+		console.log("Socket with ID :", dataArray[1], "has joined room :", dataArray[0]);
+		const newPlayer = {
+			socketID: dataArray[1],
+			room: dataArray[0],
+			name: dataArray[2].name,
+			avatar: dataArray[2].avatar,
+		};
+		console.log("delete me later", dataArray[1]);
+		if (!onlineUsers[dataArray[0]]) {
+			onlineUsers[dataArray[0]] = []; // Initialize the room array if it doesn't exist
 		}
-		console.log("User joined : onlineUsers", onlineUsers);
-		io.emit("getOnlineUsers", onlineUsers);
+		// Add the player to the room array
+		onlineUsers[dataArray[0]].push(newPlayer);
+		// Optionally, notify all users in the room of the updated user list
+		io.to(dataArray[0]).emit("updateUserList", onlineUsers[dataArray[0]]);
+		console.log("Players Connected rn :", onlineUsers);
 	});
 
-	socket.on("removeUser", (player) => {
-		const index = onlineUsers.findIndex((user) => user.name === player.name);
-		if (index !== -1) {
-			onlineUsers.splice(index, 1);
-		}
-		io.emit("getOnlineUsers", onlineUsers);
-		console.log("User left : onlineUsers", onlineUsers);
+	socket.on("disconnect", (reason) => {
+		console.log(`Socket with ID ${socket.id} has disconnected, reason: ${reason}`);
+
+		// Track rooms that need an update
+		const roomsToUpdate = [];
+
+		// Iterate through each room in the onlineUsers object
+		Object.keys(onlineUsers).forEach((roomCode) => {
+			// Filter out the disconnected user from the room's player array
+			const originalLength = onlineUsers[roomCode].length;
+			onlineUsers[roomCode] = onlineUsers[roomCode].filter(
+				(player) => player.socketID !== socket.id
+			);
+
+			// If the player was removed (length changed), mark this room for update
+			if (onlineUsers[roomCode].length !== originalLength) {
+				roomsToUpdate.push(roomCode);
+			}
+
+			// If the room is now empty, you can optionally remove it from the onlineUsers object
+			if (onlineUsers[roomCode].length === 0) {
+				delete onlineUsers[roomCode];
+			}
+		});
+
+		// Emit the updated user list to the rooms that were affected
+		roomsToUpdate.forEach((roomCode) => {
+			io.to(roomCode).emit("updateUserList", onlineUsers[roomCode]);
+		});
+
+		console.log("Updated Online Users:", onlineUsers);
 	});
-	let players = [];
-	let turn = 0;
-	socket.on("joinGame", (player) => {
-		players.push({ ...player, isTurn: players.length === 0 }); // First player starts
-		socket.emit("startGame", { firstTurn: turn });
-		io.emit("playerJoined", players);
-	});
-
-	socket.on("boxClicked", ({ box, player }) => {
-		io.emit("boxClicked", { box, player });
-		const winner = determineWinner(player, box);
-		if (winner) {
-			io.emit("gameWinner", winner);
-			players = []; // Reset players for new game
-		} else {
-			nextTurn();
-			io.emit("nextTurn", { turn: players[turn].id });
-		}
-	});
-
-	socket.on("changeColor", () => {
-		io.emit("changeColor");
-	});
-
-	socket.on("disconnect", () => {
-		console.log(`User disconnected: ${socket.id}`);
-		onlineUsers = onlineUsers.filter((user) => user.socketId !== socket.id);
-		io.emit("getOnlineUsers", onlineUsers);
-		console.log("User left: onlineUsers", onlineUsers);
-	});
-
-	function nextTurn() {
-		turn = (turn + 1) % players.length;
-	}
-
-	function determineWinner(player, box) {
-		// Find the opponent's index
-		const opponentIndex = players.findIndex((p) => p.id !== player.id);
-
-		// Check if the opponent guessed correctly
-		if (opponentIndex !== -1 && players[opponentIndex].guess === box) {
-			return players[opponentIndex]; // Opponent wins
-		} else {
-			return null; // No winner yet
-		}
-	}
 });
 
-io.listen(port, () => {
-	console.log(`Server running on port ${port}`);
-});
+// io.listen(port, () => {
+// 	console.log(`Server running on port ${port}`);
+// });
 
+/* ************************** */
+/* *****	MIDDLEWARE	***** */
+/* ************************** */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, "public"))); // Serve static files from the public directory
+
+app.use(express.json());
 app.use("/api/players", playerRouter);
 app.use("/api/gameState", gameStateRouter);
 app.use("/api/gameRoom", gameRoomRouter);
 app.use("/api/gameConfig", gameConfigurationRouter);
+/* ******* END MIDDLEWARE ******* */
 
+/* ************************** */
+/* ****	  DB CONNECTION	**** */
+/* ************************** */
 mongoose
 	.connect(uri)
 	.then(() => console.log("MongoDB connection established!"))

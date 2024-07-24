@@ -4,7 +4,12 @@ import validator from "validator";
 export const PlayerContext = createContext();
 
 export const PlayerContextProvider = ({ children }) => {
-	const [player, setPlayer] = useState({ name: "", gender: "male", avatar: "" });
+	const [player, setPlayer] = useState({
+		playerSocket: null,
+		name: "",
+		gender: "male",
+		avatar: "",
+	});
 	const [isCreateGame, setIsCreateGame] = useState(null);
 	const [selectedAvatarPath, setSelectedAvatarPath] = useState("");
 

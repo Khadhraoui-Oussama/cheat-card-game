@@ -3,62 +3,57 @@ import { io } from "socket.io-client";
 import { PlayerContext } from "../contexts/PlayerContext";
 import LeftRightGame from "../components/LeftRightGame";
 import "../index.css";
+import { SocketContext } from "../contexts/SocketContext";
 const GameRoom = () => {
-	const [socket, setSocket] = useState(null);
-	const [onlineUsers, setOnlineUsers] = useState([]);
-	const { player, setPlayer, selectedAvatarPath, setSelectedAvatarPath } =
-		useContext(PlayerContext);
-	//initialize socket
-	useEffect(() => {
-		const newSocket = io("https://card-game-zcy5.onrender.com"); // same port the socket.io server will listen to ,change if needed
-		setSocket(newSocket);
-		//cleanup function for when we are no longer using the socket or we aretrying to reconnect
+	// const { socket, setSocket, onlineUsers, setOnlineUsers } = useContext(SocketContext);
+	// const { player, setPlayer, selectedAvatarPath, setSelectedAvatarPath } =
+	// 	useContext(PlayerContext);
+	// const [playerForState, setPlayerForState] = useState(player);
+	// //INTIALIZE SOCKET ONLY AND DISCONNECT IT WHEN THE GameRoom COMPONENET UNMOUNTS
+	// useEffect(() => {
+	// 	// url of render backend : https://card-game-zcy5.onrender.com
+	// 	// io(url) connects to the socket io server at the url
+	// 	const newSocket = io("http://localhost:5000"); // same port the socket.io server will listen to ,change if needed
+	// 	setSocket(newSocket);
 
-		return () => {
-			if (newSocket) {
-				newSocket.emit("removeUser", player);
-				newSocket.disconnect();
-			}
-		};
-	}, []);
-	//add online user status
-	useEffect(() => {
-		if (socket === null) return;
-		socket.emit("addNewUser", player);
-		console.log("player before sending to socket server", player);
-		socket.on("getOnlineUsers", (res) => {
-			setOnlineUsers(res);
-		});
-		return () => {
-			socket.off("getOnlineUsers");
-		};
-	}, [socket, player]);
-	const notificationStyle = {
-		color: "red",
-	};
-	const notificationStyle2 = {
-		color: "green",
-	};
+	// 	//TODO : the socket sould be in a ContextApi file
+
+	// 	newSocket.on("connect", () => {
+	// 		console.log("on connect", newSocket.id); // ojIckSD2jqNzOqIrAGzL
+	// 		newSocket.emit("playerJoined");
+	// 	});
+	// 	return () => {
+	// 		if (newSocket) {
+	// 			console.log("socket disconnect : ", newSocket.id);
+	// 			newSocket.disconnect();
+	// 		}
+	// 	};
+	// }, []);
+
+	// // Listen for socket events
+	// useEffect(() => {
+	// 	if (!socket) return;
+
+	// 	const handleUserJoined = (user) => {
+	// 		setOnlineUsers((prevUsers) => [...prevUsers, user]);
+	// 	};
+
+	// 	const handleUserLeft = (user) => {
+	// 		setOnlineUsers((prevUsers) => prevUsers.filter((u) => u.id !== user.id));
+	// 	};
+
+	// 	socket.on("userJoined", handleUserJoined);
+	// 	socket.on("userLeft", handleUserLeft);
+
+	// 	return () => {
+	// 		socket.off("userJoined", handleUserJoined);
+	// 		socket.off("userLeft", handleUserLeft);
+	// 	};
+	// }, [socket]);
+	// ///// ROOMS ADD THEM
 	return (
 		<>
 			<h5>Welcome to the Game Room</h5>
-			<h6>Users in the Room : </h6>
-			{onlineUsers.map((user) => {
-				return (
-					<div className="playerBox" key={user.name}>
-						<p>{user.name}</p>
-						<img src={`/avatars/${user.avatar}`}></img>
-					</div>
-				);
-			})}
-			{onlineUsers.length < 2 && socket ? (
-				<h5 style={notificationStyle}>Waiting for the other player to Join</h5>
-			) : (
-				<div>
-					<h5 style={notificationStyle2}>Starting the Game</h5>
-					<LeftRightGame socket={socket} setSocket={setSocket} players={onlineUsers} />
-				</div>
-			)}
 		</>
 	);
 };

@@ -1,14 +1,14 @@
 import "../index.css";
 import { useContext, useState } from "react";
 import { PlayerContext } from "../contexts/PlayerContext";
-import { Alert, Col, Container, Row, Stack } from "react-bootstrap";
+import { Alert, Button, Col, Container, Row, Stack } from "react-bootstrap";
 import GameOptionsSelect from "../components/GameOptionsSelect";
 import PlayerInfoSelect from "../components/PlayerInfoSelect";
-import JoinGameSection from "../components/JoinGameSection";
+import JoinGameRoomSection from "../components/JoinGameRoomSection";
 import LobbyFooter from "../components/LobbyFooter";
 import { Popup } from "reactjs-popup";
 
-const GameLobby = () => {
+const LandingPage = () => {
 	const {
 		player,
 		setPlayer,
@@ -32,11 +32,11 @@ const GameLobby = () => {
 					style={{ border: "solid 2px blue" }}>
 					<Stack
 						gap={1}
-						style={{ width: "45%", maxHeight: "90vh", border: "solid 2px red" }}
+						style={{ width: "80%", maxHeight: "90vh", border: "solid 2px red" }}
 						className="m-auto pt-2">
 						<PlayerInfoSelect />
-						<JoinGameSection />
-						<button onClick={() => openPopup()}> Create a new game </button>
+						<JoinGameRoomSection />
+						<Button onClick={() => openPopup()}> Create a new game </Button>
 						<Popup
 							open={isOpen}
 							modal
@@ -59,4 +59,4 @@ const GameLobby = () => {
 	);
 };
 
-export default GameLobby;
+export default LandingPage;

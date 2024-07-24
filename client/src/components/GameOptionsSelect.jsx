@@ -66,7 +66,7 @@ const GameOptionsSelect = () => {
 								<Button onClick={() => setIsOpen(false)}>Cancel</Button>
 
 								<Link
-									to="/wa"
+									to="/wa/"
 									onClick={() => console.log("going to game waiting area")}>
 									<Button
 										onClick={() => {
