@@ -1,59 +1,72 @@
 import { useContext, useEffect, useState } from "react";
 import { Stack, Container, Col, Row, Button, Card, Placeholder } from "react-bootstrap";
-import { Link } from "react-router-dom";
-import { io } from "socket.io-client";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { SocketContext } from "../contexts/SocketContext";
 import { PlayerContext } from "../contexts/PlayerContext";
 import PlayerCardHolder from "../components/PlayerCardHolder";
 import PlayerCard from "../components/PlayerCard";
 const GameWaitingArea = () => {
-	const { socket, setSocket, roomCode, setRoomCode } = useContext(SocketContext);
-	const { player, setPlayer } = useContext(PlayerContext);
-	const [userList, setUserList] = useState([]); // State to store the players in the room ( waiting area for now)
+	const { socket, roomCode, setRoomCode } = useContext(SocketContext);
+	const { player } = useContext(PlayerContext);
+	const [userList, setUserList] = useState([]);
+	const navigate = useNavigate();
 
-	console.log("ROOMCODE", roomCode);
-
-	//INTIALIZE SOCKET ONLY AND DISCONNECT IT WHEN THE GameWaitingArea COMPONENET UNMOUNTS
 	useEffect(() => {
-		// url of render backend : https://card-game-zcy5.onrender.com
-		// io(url) connects to the socket io server at the url
-		const newSocket = io("http://localhost:5000"); // same port the socket.io server will listen to ,change if needed
-		setSocket(newSocket);
-		newSocket.on("connect", () => {
-			console.log("socket connected :", newSocket.id); //
+		if (!socket.connected) {
+			socket.connect();
+		}
+
+		socket.on("connect", () => {
+			console.log("Socket connected:", socket.id);
 			if (!roomCode) {
-				const a = newSocket.id.substring(0, 7);
-				setRoomCode(a);
-				console.log("ROOMCODE", a);
+				const newRoomCode = socket.id.substring(0, 7);
+				setRoomCode(newRoomCode);
+				console.log("ROOMCODE", newRoomCode);
+			} else {
+				const playerNewObj = {
+					name: player.name,
+					avatar: player.avatar,
+					socketID: socket.id,
+					room: roomCode,
+					isLeader: player.isLeader,
+				};
+				socket.emit("joinRoom", [roomCode, socket.id, playerNewObj]);
 			}
 		});
 
-		// Listen for updateUserList event
-		newSocket.on("updateUserList", (updatedUserList) => {
+		socket.on("updateUserList", (updatedUserList) => {
 			console.log("Updated user list received:", updatedUserList);
 			setUserList(updatedUserList);
 		});
 
+		socket.on("navigateToGameRoomR", (roomCode) => {
+			navigate(`/play/${roomCode}`);
+		});
+
 		return () => {
-			if (newSocket) {
-				console.log("socket disconnected : ", newSocket.id);
-				newSocket.disconnect();
-			}
+			socket.off("connect");
+			socket.off("updateUserList");
+			socket.off("navigateToGameRoomR");
 		};
-	}, []);
-	// Emit joinRoom event when roomCode is set
+	}, [socket, player, roomCode, setRoomCode]);
+
 	useEffect(() => {
-		if (socket && roomCode) {
-			const playerNewObj = { name: player.name, avatar: player.avatar };
-			console.log("***socket.id before emiting to joinRoom", socket.id);
+		if (socket.connected && roomCode) {
+			const playerNewObj = {
+				name: player.name,
+				avatar: player.avatar,
+				socketID: socket.id,
+				room: roomCode,
+				isLeader: player.isLeader,
+			};
 			socket.emit("joinRoom", [roomCode, socket.id, playerNewObj]);
 		}
-	}, [socket, roomCode]);
+	}, [roomCode, socket, player]);
 
 	return (
 		<Container className="w-75 vh-100 flex align-items-center ">
 			<Stack className="flex align-items-center ">
-				<h4>Waiting for other players status</h4>
+				<h4>Waiting for other players To Join the room</h4>
 				<h5>Game code {roomCode}</h5>
 			</Stack>
 			<Stack className="flex align-items-center w-50 m-auto ">
@@ -75,18 +88,22 @@ const GameWaitingArea = () => {
 				</Row>
 				<Row className=" w-100 ">
 					<Col>
-						<Link to="/play">
-							<Button
-								className="m-auto w-100"
-								onClick={() => {
-									console.log("playing game");
-								}}>
-								Play Now
-							</Button>
-						</Link>
+						<Button
+							className="m-auto w-100"
+							variant={userList.length < 4 ? "secondary" : "success"}
+							onClick={() => {
+								if (userList.length >= 4) {
+									socket.emit("navigateToGameRoom", roomCode);
+									navigate(`/play/${roomCode}`); // Navigate programmatically
+								}
+							}}
+							disabled={userList.length < 4 || !player.isLeader} //the button is disabled for all the users when the users joined in are less than 4 and only activated to the leader of the room
+						>
+							Play Now
+						</Button>
 					</Col>
 					<Col className="m-auto text-center ">
-						<span className="m-auto w-100">2/4</span>
+						<span className="m-auto w-100">{userList.length}/4</span>
 					</Col>
 				</Row>
 			</Stack>
@@ -95,3 +112,6 @@ const GameWaitingArea = () => {
 };
 
 export default GameWaitingArea;
+
+GameWaitingArea.jsx;
+//NEW IDEA BITCHES : SET THE SOCKET CONNECTION AND STATE IN APP ON LOAD OR NOT ON LOAD(AUTO CONNECT IS FALSE IN SERVER IO CONFIG) AND THEN USE THAT IN ANY ROUTE IN THE APP COMPONENT

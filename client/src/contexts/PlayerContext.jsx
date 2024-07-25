@@ -9,6 +9,7 @@ export const PlayerContextProvider = ({ children }) => {
 		name: "",
 		gender: "male",
 		avatar: "",
+		isLeader: true,
 	});
 	const [isCreateGame, setIsCreateGame] = useState(null);
 	const [selectedAvatarPath, setSelectedAvatarPath] = useState("");

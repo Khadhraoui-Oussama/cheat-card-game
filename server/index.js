@@ -52,15 +52,22 @@ io.on("connection", (socket) => {
 			dataArray[0] = roomCode
 			dataArray[1] = socket.id
 			dataArray[2] = playerNewObj which only has { name: player.name, avatar: player.avatar } (ie no gender we dont need it anymore we only added it to make the avatarSelection easier)
-
 		*/
+		//check if the socket exists in a room , if yes then delete the object that the socket is a part of , if not add normally
+		const users = io.sockets.adapter.rooms.get(dataArray[0]);
+		console.log("users in room : ", dataArray[0], ", ", users); //this test show that the room can only contain a socket once ,it's a Set with the roomName as the key, so the logic of the same user being in the room more than one time has to do with the onlineUsers array
 		socket.join(dataArray[0]);
 		console.log("Socket with ID :", dataArray[1], "has joined room :", dataArray[0]);
+		//const usersInRoomArray = onlineUsers[dataArray[0]].filter((user) => user.socketID !== dataArray[1])
+		onlineUsers[dataArray[0]] = onlineUsers[dataArray[0]]?.filter(
+			(player) => player.socketID !== socket.id
+		); //this line is crucial : it may cause performance issues , but for now it's necessary to avoid pushing a newPlayer object to the onlineUsers object having the same socketID
 		const newPlayer = {
 			socketID: dataArray[1],
 			room: dataArray[0],
 			name: dataArray[2].name,
 			avatar: dataArray[2].avatar,
+			isLeader: dataArray[2].isLeader,
 		};
 		console.log("delete me later", dataArray[1]);
 		if (!onlineUsers[dataArray[0]]) {
@@ -73,11 +80,24 @@ io.on("connection", (socket) => {
 		console.log("Players Connected rn :", onlineUsers);
 	});
 
+	socket.on("changeBoxColor", (dataArray) => {
+		const color = dataArray[1] === "red" ? "blue" : "red";
+		console.log("room, color", dataArray[0], color);
+		io.to(dataArray[0]).emit("changeBoxColor", color);
+	});
+
+	socket.on("getUsersInRoom", (roomCode) => {
+		io.to(roomCode).emit("getUsersInRoomR", onlineUsers[roomCode]);
+	});
+
+	socket.on("navigateToGameRoom", (roomCode) => {
+		io.to(roomCode).emit("navigateToGameRoomR", roomCode);
+	});
+
 	socket.on("disconnect", (reason) => {
 		console.log(`Socket with ID ${socket.id} has disconnected, reason: ${reason}`);
-
 		// Track rooms that need an update
-		const roomsToUpdate = [];
+		const roomsToUpdate = []; //used to keep track of the room the disconnected socket is in ,for now its always one room, but could be more if we add a messaging room or an all players room(global rooom)
 
 		// Iterate through each room in the onlineUsers object
 		Object.keys(onlineUsers).forEach((roomCode) => {
@@ -107,6 +127,8 @@ io.on("connection", (socket) => {
 	});
 });
 
+//I NEED TO SEND A SIGNAL TO THE SERVER WHEN THE BUTTON TURNS GREEN LETTING THE SERVER KNOW TO SEND AN EVENT TO ALL IN THE ROOM TO TELL THEM TO NAVIGATE TO THE GAMEROOM
+
 // io.listen(port, () => {
 // 	console.log(`Server running on port ${port}`);
 // });
@@ -126,9 +148,13 @@ app.use("/api/gameConfig", gameConfigurationRouter);
 /* ******* END MIDDLEWARE ******* */
 
 /* ************************** */
-/* ****	  DB CONNECTION	**** */
+/* ****	  DB CONNECTION	 **** */
 /* ************************** */
 mongoose
 	.connect(uri)
 	.then(() => console.log("MongoDB connection established!"))
 	.catch((error) => console.log("MongoDB connection failed,", error.message));
+//TODO THE ROOMCODE SHOWS UP WHEN I PRESS CTRL+S ON THE SERVER WTF
+//MAKE SURE THE SOCKET HANDLING IS GLOBAL ON CLIENT SIDE
+//LOOK IN TO CHAT APP CHATCONTEXT FILE FOR GUIDANCE
+// you can use express-session to automatically create a persistent session for each new user and you can even store data in that session object that will be available on each page the user requests.

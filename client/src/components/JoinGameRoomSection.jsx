@@ -6,6 +6,7 @@ import { Button } from "react-bootstrap";
 
 const JoinGameSection = () => {
 	const { roomCode, setRoomCode } = useContext(SocketContext);
+	const { player, setPlayer } = useContext(PlayerContext);
 	return (
 		<div>
 			<input
@@ -18,7 +19,10 @@ const JoinGameSection = () => {
 				}}
 			/>
 			<Link to="/wa/">
-				<Button>Join using a room code</Button>
+				{/* TODO MAKE INPUT VALIDATION FOR THE ROOM CODE IF JOINING BY A CODE */}
+				<button onClick={() => setPlayer({ ...player, isLeader: false })}>
+					Join using a room code
+				</button>
 			</Link>
 		</div>
 	);

@@ -1,59 +1,57 @@
 import { useContext, useEffect, useState } from "react";
-import { io } from "socket.io-client";
-import { PlayerContext } from "../contexts/PlayerContext";
-import LeftRightGame from "../components/LeftRightGame";
-import "../index.css";
 import { SocketContext } from "../contexts/SocketContext";
+import "../index.css";
+import { io } from "socket.io-client";
+import PlayerCard from "../components/PlayerCard";
+
 const GameRoom = () => {
-	// const { socket, setSocket, onlineUsers, setOnlineUsers } = useContext(SocketContext);
-	// const { player, setPlayer, selectedAvatarPath, setSelectedAvatarPath } =
-	// 	useContext(PlayerContext);
-	// const [playerForState, setPlayerForState] = useState(player);
-	// //INTIALIZE SOCKET ONLY AND DISCONNECT IT WHEN THE GameRoom COMPONENET UNMOUNTS
-	// useEffect(() => {
-	// 	// url of render backend : https://card-game-zcy5.onrender.com
-	// 	// io(url) connects to the socket io server at the url
-	// 	const newSocket = io("http://localhost:5000"); // same port the socket.io server will listen to ,change if needed
-	// 	setSocket(newSocket);
+	const { socket, roomCode } = useContext(SocketContext);
+	const [style, setStyle] = useState({
+		maxWidth: "200px",
+		minHeight: "200px",
+		backgroundColor: "red",
+		cursor: "pointer",
+	});
+	const [usersinRoom, setUsersInRoom] = useState([]);
+	useEffect(() => {
+		if (!socket.connected) {
+			socket.connect();
+		}
 
-	// 	//TODO : the socket sould be in a ContextApi file
+		socket.emit("getUsersInRoom", roomCode);
+		socket.on("getUsersInRoomR", (usersArray) => {
+			setUsersInRoom(usersArray);
+			console.log("users in the room array: ", usersArray);
+		});
 
-	// 	newSocket.on("connect", () => {
-	// 		console.log("on connect", newSocket.id); // ojIckSD2jqNzOqIrAGzL
-	// 		newSocket.emit("playerJoined");
-	// 	});
-	// 	return () => {
-	// 		if (newSocket) {
-	// 			console.log("socket disconnect : ", newSocket.id);
-	// 			newSocket.disconnect();
-	// 		}
-	// 	};
-	// }, []);
+		socket.on("updateUserList", (usersArray) => {
+			setUsersInRoom(usersArray);
+		});
 
-	// // Listen for socket events
-	// useEffect(() => {
-	// 	if (!socket) return;
+		socket.on("changeBoxColor", (newColor) => {
+			setStyle({ ...style, backgroundColor: newColor });
+		});
 
-	// 	const handleUserJoined = (user) => {
-	// 		setOnlineUsers((prevUsers) => [...prevUsers, user]);
-	// 	};
+		return () => {
+			socket.off("changeBoxColor");
+			socket.off("getUsersInRoomR");
+			socket.off("updateUserList");
+		};
+	}, [socket]);
 
-	// 	const handleUserLeft = (user) => {
-	// 		setOnlineUsers((prevUsers) => prevUsers.filter((u) => u.id !== user.id));
-	// 	};
-
-	// 	socket.on("userJoined", handleUserJoined);
-	// 	socket.on("userLeft", handleUserLeft);
-
-	// 	return () => {
-	// 		socket.off("userJoined", handleUserJoined);
-	// 		socket.off("userLeft", handleUserLeft);
-	// 	};
-	// }, [socket]);
-	// ///// ROOMS ADD THEM
 	return (
 		<>
 			<h5>Welcome to the Game Room</h5>
+			<div
+				style={style}
+				onClick={() => {
+					socket.emit("changeBoxColor", [roomCode, style.backgroundColor]);
+				}}></div>
+			<div style={{ display: "inline-flex" }}>
+				{usersinRoom?.map((user) => {
+					return <PlayerCard player={user} key={user.socketID} />;
+				})}
+			</div>
 		</>
 	);
 };

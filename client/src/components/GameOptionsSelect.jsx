@@ -18,7 +18,7 @@ import { Link } from "react-router-dom";
 const GameOptionsSelect = () => {
 	const [isPasswordVisible, setIsPassowrdVisible] = useState(false);
 	//const {} = useContext(GameContext);
-	const { setIsOpen, setPlayer } = useContext(PlayerContext);
+	const { setIsOpen, player, setPlayer } = useContext(PlayerContext);
 
 	return (
 		<Stack className="popup-container">
@@ -64,13 +64,11 @@ const GameOptionsSelect = () => {
 							</Stack>
 							<Stack direction="horizontal">
 								<Button onClick={() => setIsOpen(false)}>Cancel</Button>
-
 								<Link
 									to="/wa/"
 									onClick={() => console.log("going to game waiting area")}>
 									<Button
 										onClick={() => {
-											//setPlayer({ name: "", gender: "male", avatar: "" });
 											setIsOpen(false);
 										}}>
 										Play Now

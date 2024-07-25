@@ -1,5 +1,5 @@
 import "../index.css";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { PlayerContext } from "../contexts/PlayerContext";
 import { Alert, Button, Col, Container, Row, Stack } from "react-bootstrap";
 import GameOptionsSelect from "../components/GameOptionsSelect";
@@ -7,6 +7,8 @@ import PlayerInfoSelect from "../components/PlayerInfoSelect";
 import JoinGameRoomSection from "../components/JoinGameRoomSection";
 import LobbyFooter from "../components/LobbyFooter";
 import { Popup } from "reactjs-popup";
+import { Socket } from "socket.io-client";
+import { SocketContext } from "../contexts/SocketContext";
 
 const LandingPage = () => {
 	const {
@@ -19,11 +21,14 @@ const LandingPage = () => {
 		isOpen,
 		inputError,
 	} = useContext(PlayerContext);
-
+	const { socket } = useContext(SocketContext);
 	//state for name alert show up avatar select
 
 	console.log("isOpen", isOpen);
 	console.log("inputError", inputError);
+	useEffect(() => {
+		setPlayer({ playerSocket: socket, name: "", gender: "male", avatar: "", isLeader: true });
+	}, []);
 	return (
 		<Container>
 			<Col>
