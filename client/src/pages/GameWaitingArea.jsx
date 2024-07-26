@@ -15,9 +15,19 @@ const GameWaitingArea = () => {
 		if (!socket.connected) {
 			socket.connect();
 		}
-
 		socket.on("connect", () => {
 			console.log("Socket connected:", socket.id);
+
+			// if (roomCode) {
+			// 	//coming from join room code section
+			// 	socket.emit("getRoomSize", roomCode);
+			// 	socket.on("getRoomSizeR", (roomSize) => {
+			// 		if (roomSize === 4 || roomSize > 4) {
+			// 			console.log("roomSize >= 4 : room is full");
+			// 			navigate("/");
+			// 		}
+			// 	});
+			// }
 			if (!roomCode) {
 				const newRoomCode = socket.id.substring(0, 7);
 				setRoomCode(newRoomCode);

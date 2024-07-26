@@ -55,6 +55,7 @@ io.on("connection", (socket) => {
 		*/
 		//check if the socket exists in a room , if yes then delete the object that the socket is a part of , if not add normally
 		const users = io.sockets.adapter.rooms.get(dataArray[0]);
+
 		console.log("users in room : ", dataArray[0], ", ", users); //this test show that the room can only contain a socket once ,it's a Set with the roomName as the key, so the logic of the same user being in the room more than one time has to do with the onlineUsers array
 		socket.join(dataArray[0]);
 		console.log("Socket with ID :", dataArray[1], "has joined room :", dataArray[0]);
@@ -92,6 +93,10 @@ io.on("connection", (socket) => {
 
 	socket.on("navigateToGameRoom", (roomCode) => {
 		io.to(roomCode).emit("navigateToGameRoomR", roomCode);
+	});
+	socket.on("getRoomSize", (roomCode) => {
+		console.log("Room/Size : ", roomCode, onlineUsers[roomCode]?.length);
+		io.emit("getRoomSizeR", onlineUsers[roomCode]?.length);
 	});
 
 	socket.on("disconnect", (reason) => {
