@@ -14,7 +14,7 @@ const App = () => {
 	const { socket, setSocket, roomCode } = useContext(SocketContext);
 
 	useEffect(() => {
-		const newSocket = io("https://card-game-zcy5.onrender.com", { autoConnect: false }); // http://localhost:5000
+		const newSocket = io("https://card-game-zcy5.onrender.com", { autoConnect: false }); //  http://localhost:5000
 		setSocket(newSocket);
 		return () => newSocket.close(); // Clean up the socket connection on component unmount
 	}, [setSocket]);

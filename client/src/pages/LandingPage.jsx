@@ -21,14 +21,25 @@ const LandingPage = () => {
 		isOpen,
 		inputError,
 	} = useContext(PlayerContext);
-	const { socket } = useContext(SocketContext);
-	//state for name alert show up avatar select
+	const { socket, roomCode } = useContext(SocketContext);
+	const [joinAlert, setJoinAlert] = useState(false);
 
-	console.log("isOpen", isOpen);
-	console.log("inputError", inputError);
 	useEffect(() => {
 		setPlayer({ playerSocket: socket, name: "", gender: "male", avatar: "", isLeader: true });
 	}, []);
+	const handleCreateNewRoom = () => {
+		//TODO CHECK FOR THE AVATAR AND THE NAME IN THE PLAYER ARE SET BEFORE JOINING
+		// min of avatar length
+		socket.emit("getRoomSize", roomCode);
+		socket.on("getRoomSizeR", (roomSize) => {
+			if (roomSize) {
+				setJoinAlert(true);
+			} else {
+				setJoinAlert(false);
+				openPopup();
+			}
+		});
+	};
 	return (
 		<Container>
 			<Col>
@@ -41,7 +52,18 @@ const LandingPage = () => {
 						className="m-auto pt-2">
 						<PlayerInfoSelect />
 						<JoinGameRoomSection />
-						<Button onClick={() => openPopup()}> Create a new game </Button>
+						<Button
+							onClick={() => {
+								handleCreateNewRoom();
+							}}>
+							Create a new game
+						</Button>
+						{joinAlert && (
+							<Alert key="danger" variant="danger">
+								Looks like there is already a room with that code , Please try
+								another code.
+							</Alert>
+						)}
 						<Popup
 							open={isOpen}
 							modal
