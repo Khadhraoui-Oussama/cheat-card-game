@@ -163,3 +163,5 @@ mongoose
 //MAKE SURE THE SOCKET HANDLING IS GLOBAL ON CLIENT SIDE
 //LOOK IN TO CHAT APP CHATCONTEXT FILE FOR GUIDANCE
 // you can use express-session to automatically create a persistent session for each new user and you can even store data in that session object that will be available on each page the user requests.
+
+//TODO IF THE LEADER DISCONNECTS ASSIGN A NEW ONE TO THE ROOM

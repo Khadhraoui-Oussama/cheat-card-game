@@ -21,11 +21,12 @@ const LandingPage = () => {
 		isOpen,
 		inputError,
 	} = useContext(PlayerContext);
-	const { socket, roomCode } = useContext(SocketContext);
+	const { socket, roomCode, setRoomCode } = useContext(SocketContext);
 	const [joinAlert, setJoinAlert] = useState(false);
 
 	useEffect(() => {
 		setPlayer({ playerSocket: socket, name: "", gender: "male", avatar: "", isLeader: true });
+		setRoomCode();
 	}, []);
 	const handleCreateNewRoom = () => {
 		//TODO CHECK FOR THE AVATAR AND THE NAME IN THE PLAYER ARE SET BEFORE JOINING

@@ -1,4 +1,4 @@
-import { Card } from "react-bootstrap";
+import { Button, Card } from "react-bootstrap";
 
 const PlayerCard = ({ player }) => {
 	return (

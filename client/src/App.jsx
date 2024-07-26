@@ -14,7 +14,7 @@ const App = () => {
 	const { socket, setSocket, roomCode } = useContext(SocketContext);
 
 	useEffect(() => {
-		const newSocket = io("https://card-game-zcy5.onrender.com", { autoConnect: false }); //  http://localhost:5000
+		const newSocket = io("http://localhost:5000", { autoConnect: false }); //https://card-game-zcy5.onrender.com
 		setSocket(newSocket);
 		return () => newSocket.close(); // Clean up the socket connection on component unmount
 	}, [setSocket]);
@@ -26,7 +26,16 @@ const App = () => {
 	return (
 		<Routes>
 			<Route path="/" element={<LandingPage />} />
-			<Route path="/wa/" element={<GameWaitingArea />} />
+			<Route
+				path="/wa/"
+				element={
+					player.name.length > 2 && player.avatar.length > 1 ? (
+						<GameWaitingArea />
+					) : (
+						<Navigate to="/" />
+					)
+				}
+			/>
 			<Route path="/play/*" element={roomCode ? <GameRoom /> : <Navigate to="/" />} />
 			<Route path="/settings" element={<GameSettings />} />
 			<Route path="/feedback" element={<FeedBack />} />
