@@ -1,11 +1,11 @@
 import dotenv from "dotenv";
 import express from "express";
-import { createServer } from "node:http";
+import {createServer} from "node:http";
 import cors from "cors";
 import mongoose from "mongoose";
 import path from "node:path";
-import { fileURLToPath } from "url";
-import { Server } from "socket.io";
+import {fileURLToPath} from "url";
+import {Server} from "socket.io";
 
 import playerRouter from "./Routes/playerRoute.js";
 import gameStateRouter from "./Routes/gameStateRoute.js";
@@ -60,9 +60,7 @@ io.on("connection", (socket) => {
 		socket.join(dataArray[0]);
 		console.log("Socket with ID :", dataArray[1], "has joined room :", dataArray[0]);
 		//const usersInRoomArray = onlineUsers[dataArray[0]].filter((user) => user.socketID !== dataArray[1])
-		onlineUsers[dataArray[0]] = onlineUsers[dataArray[0]]?.filter(
-			(player) => player.socketID !== socket.id
-		); //this line is crucial : it may cause performance issues , but for now it's necessary to avoid pushing a newPlayer object to the onlineUsers object having the same socketID
+		onlineUsers[dataArray[0]] = onlineUsers[dataArray[0]]?.filter((player) => player.socketID !== socket.id); //this line is crucial : it may cause performance issues , but for now it's necessary to avoid pushing a newPlayer object to the onlineUsers object having the same socketID
 		const newPlayer = {
 			socketID: dataArray[1],
 			room: dataArray[0],
@@ -76,6 +74,17 @@ io.on("connection", (socket) => {
 		}
 		// Add the player to the room array
 		onlineUsers[dataArray[0]].push(newPlayer);
+		// let existLeaderInRoom = false;
+		// for (let user in onlineUsers[dataArray[0]]) {
+		// 	console.log("user getting looped : ", user);
+		// 	if (user.isLeader) {
+		// 		existLeaderInRoom = true;
+		// 	}
+		// }
+		// if (onlineUsers[dataArray[0]] && !existLeaderInRoom) {
+		// 	onlineUsers[dataArray[0]][0].isLeader = true;
+		// 	io.to(onlineUsers[dataArray[0]][0].socketID).emit("updatePlayerLeaderStatus", true);
+		// }
 		// Optionally, notify all users in the room of the updated user list
 		io.to(dataArray[0]).emit("updateUserList", onlineUsers[dataArray[0]]);
 		console.log("Players Connected rn :", onlineUsers);
@@ -108,9 +117,7 @@ io.on("connection", (socket) => {
 		Object.keys(onlineUsers).forEach((roomCode) => {
 			// Filter out the disconnected user from the room's player array
 			const originalLength = onlineUsers[roomCode].length;
-			onlineUsers[roomCode] = onlineUsers[roomCode].filter(
-				(player) => player.socketID !== socket.id
-			);
+			onlineUsers[roomCode] = onlineUsers[roomCode].filter((player) => player.socketID !== socket.id);
 
 			// If the player was removed (length changed), mark this room for update
 			if (onlineUsers[roomCode].length !== originalLength) {
@@ -121,6 +128,19 @@ io.on("connection", (socket) => {
 			if (onlineUsers[roomCode].length === 0) {
 				delete onlineUsers[roomCode];
 			}
+			//check if a leader exists
+			//todo could be optimized by checking on disconnect and on join only
+			//if no one is a leader , assign the first one in the room to be one
+			// let existLeaderInRoom = false;
+			// for (let user in onlineUsers[roomCode]) {
+			// 	console.log("user getting looped : ", user);
+			// 	if (user.isLeader) {
+			// 		existLeaderInRoom = true;
+			// 	}
+			// }
+			// if (!existLeaderInRoom) {
+			// 	onlineUsers[roomCode][0].isLeader = true;
+			// }
 		});
 
 		// Emit the updated user list to the rooms that were affected

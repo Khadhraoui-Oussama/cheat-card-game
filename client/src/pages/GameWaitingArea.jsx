@@ -1,13 +1,13 @@
-import { useContext, useEffect, useState } from "react";
-import { Stack, Container, Col, Row, Button, Card, Placeholder } from "react-bootstrap";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { SocketContext } from "../contexts/SocketContext";
-import { PlayerContext } from "../contexts/PlayerContext";
+import {useContext, useEffect, useState} from "react";
+import {Stack, Container, Col, Row, Button, Card, Placeholder} from "react-bootstrap";
+import {Link, Navigate, useNavigate} from "react-router-dom";
+import {SocketContext} from "../contexts/SocketContext";
+import {PlayerContext} from "../contexts/PlayerContext";
 import PlayerCardHolder from "../components/PlayerCardHolder";
 import PlayerCard from "../components/PlayerCard";
 const GameWaitingArea = () => {
-	const { socket, roomCode, setRoomCode } = useContext(SocketContext);
-	const { player } = useContext(PlayerContext);
+	const {socket, roomCode, setRoomCode} = useContext(SocketContext);
+	const {player, setPlayer} = useContext(PlayerContext);
 	const [userList, setUserList] = useState([]);
 	const navigate = useNavigate();
 
@@ -17,17 +17,6 @@ const GameWaitingArea = () => {
 		}
 		socket.on("connect", () => {
 			console.log("Socket connected:", socket.id);
-
-			// if (roomCode) {
-			// 	//coming from join room code section
-			// 	socket.emit("getRoomSize", roomCode);
-			// 	socket.on("getRoomSizeR", (roomSize) => {
-			// 		if (roomSize === 4 || roomSize > 4) {
-			// 			console.log("roomSize >= 4 : room is full");
-			// 			navigate("/");
-			// 		}
-			// 	});
-			// }
 			if (!roomCode) {
 				const newRoomCode = socket.id.substring(0, 7);
 				setRoomCode(newRoomCode);
@@ -60,6 +49,12 @@ const GameWaitingArea = () => {
 		};
 	}, [socket, player, roomCode, setRoomCode]);
 
+	// useEffect(() => {
+	// 	socket.on("updatePlayerLeaderStatus", (newStatus) => {
+	// 		setPlayer({...player, isLeader: newStatus});
+	// 	});
+	// }, [userList]);
+
 	useEffect(() => {
 		if (socket.connected && roomCode) {
 			const playerNewObj = {
@@ -81,20 +76,12 @@ const GameWaitingArea = () => {
 			</Stack>
 			<Stack className="flex align-items-center w-50 m-auto ">
 				<Row className="w-100">
-					<Col>
-						{userList[0] ? <PlayerCard player={userList[0]} /> : <PlayerCardHolder />}
-					</Col>
-					<Col>
-						{userList[1] ? <PlayerCard player={userList[1]} /> : <PlayerCardHolder />}
-					</Col>
+					<Col>{userList[0] ? <PlayerCard player={userList[0]} /> : <PlayerCardHolder />}</Col>
+					<Col>{userList[1] ? <PlayerCard player={userList[1]} /> : <PlayerCardHolder />}</Col>
 				</Row>
 				<Row className="w-100">
-					<Col>
-						{userList[2] ? <PlayerCard player={userList[2]} /> : <PlayerCardHolder />}
-					</Col>
-					<Col>
-						{userList[3] ? <PlayerCard player={userList[3]} /> : <PlayerCardHolder />}
-					</Col>
+					<Col>{userList[2] ? <PlayerCard player={userList[2]} /> : <PlayerCardHolder />}</Col>
+					<Col>{userList[3] ? <PlayerCard player={userList[3]} /> : <PlayerCardHolder />}</Col>
 				</Row>
 				<Row className=" w-100 ">
 					<Col>

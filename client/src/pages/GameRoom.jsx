@@ -1,9 +1,8 @@
 import {useContext, useEffect, useState} from "react";
 import {SocketContext} from "../contexts/SocketContext";
 import "../index.css";
-import {io} from "socket.io-client";
-import PlayerCard from "../components/PlayerCard";
-import PlayableCard from "../components/gameRoomComponents/PlayableCard";
+import {Col, Container, Row, Stack} from "react-bootstrap";
+import GameBoard from "../components/gameRoomComponents/GameBoard";
 
 const GameRoom = () => {
 	const {socket, roomCode} = useContext(SocketContext);
@@ -15,7 +14,6 @@ const GameRoom = () => {
 		cursor: "pointer",
 	});
 	const [usersinRoom, setUsersInRoom] = useState([]);
-	const [cards, setCards] = useState(["AC", "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC"]);
 	// const [cards, setCards] = useState([
 	// 	"AC",
 	// 	"2C",
@@ -99,30 +97,23 @@ const GameRoom = () => {
 
 	return (
 		<>
-			<h5>Welcome to the Game Room</h5>
-			<div
-				style={style}
-				onClick={() => {
-					socket.emit("changeBoxColor", [roomCode, style.backgroundColor]);
-				}}></div>
-			<div style={{display: "inline-flex"}}>
-				{usersinRoom?.map((user) => {
-					return <PlayerCard player={user} key={user.socketID} />;
-				})}
-			</div>
-			<br />
-			<h5>These are your cards :</h5>
-			<div
-				style={{
-					display: "inline-flex",
-					border: "dashed violet 4px",
-					minWidth: "75vw",
-					minHeight: "200px",
-				}}>
-				{cards.map((card) => {
-					return <PlayableCard cardType={card} key={card} />;
-				})}
-			</div>
+			<Container>
+				<Stack>
+					<h5>Welcome to the Game Room</h5>
+					<div
+						style={style}
+						onClick={() => {
+							socket.emit("changeBoxColor", [roomCode, style.backgroundColor]);
+						}}></div>
+					{/* <div style={{display: "inline-flex"}}>
+						{usersinRoom?.map((user) => {
+							return <PlayerCard player={user} key={user.socketID} />;
+						})}
+					</div> */}
+					<br />
+					<GameBoard />
+				</Stack>
+			</Container>
 		</>
 	);
 };

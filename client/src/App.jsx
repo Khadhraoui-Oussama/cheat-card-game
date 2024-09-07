@@ -1,20 +1,20 @@
-import { useContext, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import {useContext, useEffect} from "react";
+import {Routes, Route, Navigate} from "react-router-dom";
 import FeedBack from "./pages/FeedBack";
 import LandingPage from "./pages/LandingPage";
 import GameRoom from "./pages/GameRoom";
 import GameSettings from "./pages/GameSettings";
 import GameWaitingArea from "./pages/GameWaitingArea";
 import Tutorial from "./pages/Tutorial";
-import { PlayerContext, PlayerContextProvider } from "./contexts/PlayerContext";
-import { SocketContext, SocketContextProvider } from "./contexts/SocketContext.jsx";
-import { io } from "socket.io-client";
+import {PlayerContext, PlayerContextProvider} from "./contexts/PlayerContext";
+import {SocketContext, SocketContextProvider} from "./contexts/SocketContext.jsx";
+import {io} from "socket.io-client";
 const App = () => {
-	const { player } = useContext(PlayerContext);
-	const { socket, setSocket, roomCode } = useContext(SocketContext);
+	const {player} = useContext(PlayerContext);
+	const {socket, setSocket, roomCode} = useContext(SocketContext);
 
 	useEffect(() => {
-		const newSocket = io("http://localhost:5000", { autoConnect: false }); //https://card-game-zcy5.onrender.com
+		const newSocket = io("http://localhost:5000", {autoConnect: false}); //https://card-game-zcy5.onrender.com
 		setSocket(newSocket);
 		return () => newSocket.close(); // Clean up the socket connection on component unmount
 	}, [setSocket]);
@@ -28,13 +28,7 @@ const App = () => {
 			<Route path="/" element={<LandingPage />} />
 			<Route
 				path="/wa/"
-				element={
-					player.name.length > 2 && player.avatar.length > 1 ? (
-						<GameWaitingArea />
-					) : (
-						<Navigate to="/" />
-					)
-				}
+				element={player.name.length > 2 && player.avatar.length > 1 ? <GameWaitingArea /> : <Navigate to="/" />}
 			/>
 			<Route path="/play/*" element={roomCode ? <GameRoom /> : <Navigate to="/" />} />
 			<Route path="/settings" element={<GameSettings />} />

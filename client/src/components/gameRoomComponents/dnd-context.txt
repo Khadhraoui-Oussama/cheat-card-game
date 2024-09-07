@@ -1,0 +1,62 @@
+KanbanBoard => GameBoard
+KanbanLane  => CardsHolder (one for the player's cards , the other for the TURN_MANAGER)
+KanbanItem  => Holds the PlayableCard component 
+kanbanBoard hahs Multiple KanbanLanes , returns the dndcontext wich has the ondragend function : onDragEnd={(e) => {
+				const container = e.over?.id;
+				const title = e.active.data.current?.title ?? "";
+				const index = e.active.data.current?.index ?? 0;
+				const parent = e.active.data.current?.parent ?? "ToDo";
+				console.log("container/title/index/parent", container, title, index, parent);
+				if (container === "ToDo") {
+					setTodoItems([...todoItems, {title}]);
+				} else if (container === "Done") {
+					setDoneItems([...doneItems, {title}]);
+				} else if (container === "Unassigned") {
+					setuItems([...uItems, {title}]);
+				} else {
+					setInProgressItems([...inProgressItems, {title}]);
+				}
+				if (parent === "ToDo") {
+					setTodoItems([...todoItems.slice(0, index), ...todoItems.slice(index + 1)]);
+				} else if (parent === "Done") {
+					setDoneItems([...doneItems.slice(0, index), ...doneItems.slice(index + 1)]);
+				} else if (parent === "Unassigned") {
+					setuItems([...uItems.slice(0, index), ...uItems.slice(index + 1)]);
+				} else {
+					setInProgressItems([...inProgressItems.slice(0, index), ...inProgressItems.slice(index + 1)]);
+				}
+<KanbanLane title="ToDo" items={todoItems} /> each KanbanLane has a title and the items it holds which are updated by the ondragend function
+
+KanbanItem takes (title,index,parent) props , has usedraggable hook const {attributes, listeners, setNodeRef, transform} = useDraggable({
+		id: title,
+		data: {
+			title,
+			index,
+			parent,
+		},
+	});
+const style = {
+		transform: CSS.Translate.toString(transform),
+	};
+spread the listeners and attributes, set the ref to setNodeRef from the usedraggable hook and the transform
+return <div transform={style.transform}
+			{...listeners}
+			{...attributes}
+			ref={setNodeRef}>
+			<PlayableCard cardType={title}> close enough
+
+
+KanbanLane takes {title, items} as props : and uses useDroppable hook : const {setNodeRef} = useDroppable({
+		id: title,
+	});
+return <div 
+        ref={setNodeRef}
+        {items.map(({title: cardTitle}, key) => (
+					<KanbanItem title={cardTitle} key={key} index={key} parent={title} />
+		))}
+
+
+THIS SHOULD WORK FINE BUT FOR OUR USE CASE WE NEED TO : 
+    *ADD SORTABLE CONTEXT FOR THE KANBANLANES
+    *MODIFY THE onDragEnd FUNCTION TO REMOVE THE DROPPING OF KANBANITEMS WHEN MOVING IT OUT OF A KANBANLANE
+    *container/title/index/parent undefined AZ 0 In Progress WHEN THE CONTAINER IS UNDEFINED THE KANBANITEM SIMPLY DISSAPEARS 
