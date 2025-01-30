@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
 		// 	onlineUsers[dataArray[0]][0].isLeader = true;
 		// 	io.to(onlineUsers[dataArray[0]][0].socketID).emit("updatePlayerLeaderStatus", true);
 		// }
-		// Optionally, notify all users in the room of the updated user list
+		// Notify all users in the room of the updated user list
 		io.to(dataArray[0]).emit("updateUserList", onlineUsers[dataArray[0]]);
 		console.log("Players Connected rn :", onlineUsers);
 	});
@@ -184,4 +184,5 @@ mongoose
 //LOOK IN TO CHAT APP CHATCONTEXT FILE FOR GUIDANCE
 // you can use express-session to automatically create a persistent session for each new user and you can even store data in that session object that will be available on each page the user requests.
 
-//TODO IF THE LEADER DISCONNECTS ASSIGN A NEW ONE TO THE ROOM
+//TODO IF THE LEADER DISCONNECTS ASSIGN A NEW ONE TO THE ROOM STILL NOT DONE
+//IF GAME ROOM RELOADS A PLAYER GETS DISCONNECTED

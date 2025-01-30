@@ -1,10 +1,12 @@
+import {Button} from "react-bootstrap";
+
 const LobbyFooter = () => {
 	return (
 		<div>
-			<button>How To Play</button>
-			<button>Contact us</button>
-			<button>Language</button>
-			<button>Settings</button>
+			<Button variant="success">How To Play</Button>
+			<Button variant="success">Contact us</Button>
+			<Button variant="success">Language</Button>
+			<Button variant="success">Settings</Button>
 		</div>
 	);
 };

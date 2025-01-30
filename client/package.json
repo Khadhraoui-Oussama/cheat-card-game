@@ -12,6 +12,7 @@
 	"dependencies": {
 		"@dnd-kit/sortable": "^8.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
+		"@tailwindcss/vite": "^4.0.1",
 		"bootstrap": "^5.3.3",
 		"dnd-kit": "^0.0.2",
 		"react": "^18.2.0",
@@ -20,16 +21,20 @@
 		"react-router-dom": "^6.22.3",
 		"reactjs-popup": "^2.0.6",
 		"socket.io-client": "^4.7.5",
-		"validator": "^13.11.0"
+		"validator": "^13.11.0",
+		"tailwindcss": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/react": "^18.2.66",
 		"@types/react-dom": "^18.2.22",
 		"@vitejs/plugin-react": "^4.2.1",
+		"autoprefixer": "^10.4.20",
 		"eslint": "^8.57.0",
 		"eslint-plugin-react": "^7.34.1",
 		"eslint-plugin-react-hooks": "^4.6.0",
 		"eslint-plugin-react-refresh": "^0.4.6",
+		"postcss": "^8.5.1",
+		"tailwindcss": "^4.0.1",
 		"vite": "^5.2.0"
 	}
 }

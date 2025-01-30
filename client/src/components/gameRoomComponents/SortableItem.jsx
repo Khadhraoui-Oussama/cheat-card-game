@@ -12,6 +12,10 @@ const SortableItem = ({title, index, parent}) => {
 	const style = {
 		transform: CSS.Translate.toString(transform),
 		transition,
+		position: "absolute", // Enables stacking
+		left: `${index * 1.1}rem`, // if we remove the line : left: `${index * 1.1}rem` we get solitaire cards stacking
+		top: 0,
+		margin: "auto",
 		zIndex: isDragging ? "9999" : "auto",
 		opacity: isDragging ? ".3" : "1",
 	};

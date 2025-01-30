@@ -15,6 +15,8 @@ const GameWaitingArea = () => {
 		if (!socket.connected) {
 			socket.connect();
 		}
+		// why are we creting a new roomcode and a new playerobject ??
+		//might need to revisit how we pass state and data
 		socket.on("connect", () => {
 			console.log("Socket connected:", socket.id);
 			if (!roomCode) {
@@ -55,6 +57,7 @@ const GameWaitingArea = () => {
 	// 	});
 	// }, [userList]);
 
+	//this bit of code is similar to the above in the first udeEffect , why is it needed ??
 	useEffect(() => {
 		if (socket.connected && roomCode) {
 			const playerNewObj = {
@@ -69,8 +72,8 @@ const GameWaitingArea = () => {
 	}, [roomCode, socket, player]);
 
 	return (
-		<Container className="w-75 vh-100 flex align-items-center ">
-			<Stack className="flex align-items-center ">
+		<Container className="w-75 vh-100 align-center">
+			<Stack className="flex align-items-center py-2">
 				<h4>Waiting for other players To Join the room</h4>
 				<h5>Game code {roomCode}</h5>
 			</Stack>
@@ -110,5 +113,5 @@ const GameWaitingArea = () => {
 
 export default GameWaitingArea;
 
-GameWaitingArea.jsx;
+// GameWaitingArea.jsx;
 //NEW IDEA BITCHES : SET THE SOCKET CONNECTION AND STATE IN APP ON LOAD OR NOT ON LOAD(AUTO CONNECT IS FALSE IN SERVER IO CONFIG) AND THEN USE THAT IN ANY ROUTE IN THE APP COMPONENT

@@ -3,6 +3,7 @@ import {SocketContext} from "../contexts/SocketContext";
 import "../index.css";
 import {Col, Container, Row, Stack} from "react-bootstrap";
 import GameBoard from "../components/gameRoomComponents/GameBoard";
+import GameBoardGrid from "../components/gameRoomComponents/GameBoardGrid/GameBoardGrid";
 
 const GameRoom = () => {
 	const {socket, roomCode} = useContext(SocketContext);
@@ -97,23 +98,7 @@ const GameRoom = () => {
 
 	return (
 		<>
-			<Container>
-				<Stack>
-					<h5>Welcome to the Game Room</h5>
-					<div
-						style={style}
-						onClick={() => {
-							socket.emit("changeBoxColor", [roomCode, style.backgroundColor]);
-						}}></div>
-					{/* <div style={{display: "inline-flex"}}>
-						{usersinRoom?.map((user) => {
-							return <PlayerCard player={user} key={user.socketID} />;
-						})}
-					</div> */}
-					<br />
-					<GameBoard />
-				</Stack>
-			</Container>
+			<GameBoardGrid />
 		</>
 	);
 };
