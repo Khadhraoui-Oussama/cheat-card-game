@@ -15,14 +15,15 @@
 		"@tailwindcss/vite": "^4.0.1",
 		"bootstrap": "^5.3.3",
 		"dnd-kit": "^0.0.2",
+		"esbuild": "^0.25.1",
 		"react": "^18.2.0",
 		"react-bootstrap": "^2.10.2",
 		"react-dom": "^18.2.0",
 		"react-router-dom": "^6.22.3",
 		"reactjs-popup": "^2.0.6",
 		"socket.io-client": "^4.7.5",
-		"validator": "^13.11.0",
-		"tailwindcss": "^4.0.0"
+		"tailwindcss": "^4.0.0",
+		"validator": "^13.11.0"
 	},
 	"devDependencies": {
 		"@types/react": "^18.2.66",
