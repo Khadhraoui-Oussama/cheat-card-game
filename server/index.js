@@ -41,10 +41,54 @@ app.get("/", (req, res) => {
 });
 
 let onlineUsers = {};
+let lastMovePlayedInRoom = {};
 //LETS TALK FOR A SECOND
 /*
  I NEED TO STORE ONLINEUSERS IN A DICTIONNARY TYPE DATA DTRUCT WHERE THE KEY IS THE ROOMCODE AND THE VALUE IS AN ARRAY OF THE PLAYER OBJECTS THAT ARE IN THE ROOM
 */
+
+// Add these helper functions above your socket.io connection handler
+const createDeck = () => {
+	const suits = ["C", "D", "H", "S"];
+	const values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+	const deck = [];
+
+	//1 deck is used here
+	//if at a later point more decks area added , should make sure every card is unique
+	//to avoid dnd-kit issues , also make sure that deck.slice is updated from 13 to 13 * number_of_decks_used
+	const number_of_decks_used = 1;
+	for (let index = 0; index < number_of_decks_used; index++) {
+		for (let suit of suits) {
+			for (let value of values) {
+				deck.push(`${value}${suit}`);
+			}
+		}
+	}
+	deck.push("1J", "2J", "3J", "4J");
+	return deck;
+};
+
+const shuffleDeck = (deck) => {
+	for (let i = deck.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[deck[i], deck[j]] = [deck[j], deck[i]];
+	}
+	return deck;
+};
+
+const assignNewLeader = (roomCode) => {
+	if (!onlineUsers[roomCode] || onlineUsers[roomCode].length === 0) return;
+
+	const hasLeader = onlineUsers[roomCode].some((player) => player.isLeader);
+
+	if (!hasLeader && onlineUsers[roomCode].length > 0) {
+		onlineUsers[roomCode][0].isLeader = true;
+		// Notify the new leader
+		io.to(onlineUsers[roomCode][0].socketID).emit("updateLocalPlayer", onlineUsers[roomCode][0]);
+		// Notify all players in the room about the updated user list
+		io.to(roomCode).emit("updateUserList", onlineUsers[roomCode]);
+	}
+};
 
 io.on("connection", (socket) => {
 	socket.on("joinRoom", (dataArray) => {
@@ -74,29 +118,17 @@ io.on("connection", (socket) => {
 		}
 		// Add the player to the room array
 		onlineUsers[dataArray[0]].push(newPlayer);
-		// let existLeaderInRoom = false;
-		// for (let user in onlineUsers[dataArray[0]]) {
-		// 	console.log("user getting looped : ", user);
-		// 	if (user.isLeader) {
-		// 		existLeaderInRoom = true;
-		// 	}
-		// }
-		// if (onlineUsers[dataArray[0]] && !existLeaderInRoom) {
-		// 	onlineUsers[dataArray[0]][0].isLeader = true;
-		// 	io.to(onlineUsers[dataArray[0]][0].socketID).emit("updatePlayerLeaderStatus", true);
-		// }
+
+		// Check and assign leader if needed
+		assignNewLeader(dataArray[0]);
+
 		// Notify all users in the room of the updated user list
 		io.to(dataArray[0]).emit("updateUserList", onlineUsers[dataArray[0]]);
 		console.log("Players Connected rn :", onlineUsers);
 	});
 
-	socket.on("changeBoxColor", (dataArray) => {
-		const color = dataArray[1] === "red" ? "blue" : "red";
-		console.log("room, color", dataArray[0], color);
-		io.to(dataArray[0]).emit("changeBoxColor", color);
-	});
-
 	socket.on("getUsersInRoom", (roomCode) => {
+		console.log("received getUsersInRoom signal from client with roomCode : ", roomCode);
 		io.to(roomCode).emit("getUsersInRoomR", onlineUsers[roomCode]);
 	});
 
@@ -108,6 +140,105 @@ io.on("connection", (socket) => {
 		io.emit("getRoomSizeR", onlineUsers[roomCode]?.length);
 	});
 
+	/* START GAME LOGIC */
+	socket.on("startGame", ({roomCode, socketID}) => {
+		console.log("startGame signal received from client with roomCode:", roomCode);
+
+		// Get all players in the room
+		const players = onlineUsers[roomCode];
+		if (!players || players.length !== 4) {
+			console.log("Need exactly 4 players to start the game");
+			return;
+		}
+
+		// Create and shuffle the deck
+		const deck = shuffleDeck(createDeck());
+
+		// Deal 13 cards to each player and update their player object
+		let localPlayer;
+		players.forEach((player, index) => {
+			const playerCards = deck.slice(index * 13, (index + 1) * 13);
+			player.cards = playerCards; // Add the cards to the player object
+			if (player.isLeader) {
+				player.hasTurn = true;
+			} else {
+				player.hasTurn = false; // Set the player's turn to false
+			}
+
+			// Send cards privately to each player
+			io.to(player.socketID).emit("receiveCards", {playerCards, localPlayer});
+		});
+		players.forEach((player) => {
+			if (player.socketID === socketID) {
+				localPlayer = player;
+			}
+			io.to(player.socketID).emit("updateLocalPlayer", localPlayer);
+		});
+
+		//GIVE TURN TO THE GAME ROOM LEADER
+		io.to(roomCode).emit("updateTurn", {currentPlayer: localPlayer.socketID});
+		// Update the onlineUsers object with the modified players
+		onlineUsers[roomCode] = players;
+
+		// Notify all players that the game has started
+		io.to(roomCode).emit("startGameR", roomCode);
+	});
+
+	//implement server response to the player making a move
+	//THE SERVER SHOULD AT ALL TIMES HAVE THE STATE OF THE GAME STORED INSIDE IT
+	//WHEN A PLAYERS SENDS A makeMove signal THE SERVER WILL MAKE THE NECESSAY ADJUSTMENTS TO THE GAME STATE
+	//THEN UPDATE THE STATE INTERNALLY ,CHECK FOR WINNERS,THEN PASS THE TURN TO THE NEXT PLAYER
+	const checkWinner = (roomCode) => {
+		const winnerPlayerObject = onlineUsers[roomCode]?.find((player) => player.cards.length === 0);
+		const winnerBOOL = winnerPlayerObject !== undefined;
+		console.log("winner : ", winnerPlayerObject, " winnerBool :", winnerBOOL);
+		return {winnerBOOL, winnerPlayerObject: winnerBOOL ? winnerPlayerObject : null};
+	};
+	socket.on("makeMove", ({roomCode, socketID, cardsPlayedArray, cardValueTold}) => {
+		//if player is first to start ie the leader or any player that accused and won or got accused and won ,then the player can play any nymber of cards
+		//and has to include the card value with no suit,
+		//we have to store the last move ie the cardValueTold and the cardsPlayedArray
+		//so that when a player gets accused we can check if the cards played match the cardValueTold
+		//if the player is not the leader then the player has to play the same cardValueTold as the last player
+		console.log("makeMove signal received from client with roomCode:", roomCode, " with cardsPlayedArray : ", cardsPlayedArray);
+		onlineUsers[roomCode]?.forEach((player) => {
+			//remove the cards played from the player's hand
+			//todo check for preorder action before removing the cards entirely
+
+			if (player.socketID === socketID) {
+				player.cards = player.cards.filter((card) => !cardsPlayedArray.includes(card));
+			}
+		});
+		lastMovePlayedInRoom[roomCode] = {cardsPlayedArray, cardValueTold};
+		const findNextTurn = () => {
+			//could be interrupted by accuse action in that case : 2 cases arise :
+			//if accuser is right the turn goes to the accuser
+			//if accuser is wrong the turn goes to the accused
+			//need a way to store the accused and the accuser
+			//also need to find a way to get the actiontype so it can be displayed in events section
+			//circular motion of turns thanks to moudlo operator
+			const currentPlayerIndex = onlineUsers[roomCode]?.findIndex((player) => player.socketID === socketID);
+			const nextPlayerIndex = (currentPlayerIndex + 1) % onlineUsers[roomCode]?.length;
+			return onlineUsers[roomCode][nextPlayerIndex];
+		};
+		// Check for winners
+		const {winnerBOOL, winnerPlayerObject} = checkWinner(roomCode);
+		// If there is a winner, send the winner to the client
+		if (winnerBOOL) {
+			io.to(roomCode).emit("gameOver", winnerPlayerObject);
+		} else {
+			io.to(roomCode).emit("updateTurn", {currentPlayer: findNextTurn().socketID});
+		}
+	});
+	socket.on("accuse", ({roomCode, socketID, accusedPlayerID}) => {
+		//check if last move played is the same as the cardValueTold
+	});
+	socket.on("preorder", ({roomCode, socketID, accusedPlayerID, cardValueTold}) => {
+		//prevent all other players from acccusing this player
+		//only the player that issued the preorder signal can accuse after the accusedPlayer has played their turn
+	});
+	/* END GAME LOGIC */
+
 	socket.on("disconnect", (reason) => {
 		console.log(`Socket with ID ${socket.id} has disconnected, reason: ${reason}`);
 		// Track rooms that need an update
@@ -116,31 +247,27 @@ io.on("connection", (socket) => {
 		// Iterate through each room in the onlineUsers object
 		Object.keys(onlineUsers).forEach((roomCode) => {
 			// Filter out the disconnected user from the room's player array
-			const originalLength = onlineUsers[roomCode].length;
-			onlineUsers[roomCode] = onlineUsers[roomCode].filter((player) => player.socketID !== socket.id);
+			const originalLength = onlineUsers[roomCode]?.length;
+			const disconnectedPlayer = onlineUsers[roomCode]?.find((player) => player.socketID === socket.id);
+			const wasLeader = disconnectedPlayer?.isLeader;
+
+			onlineUsers[roomCode] = onlineUsers[roomCode]?.filter((player) => player.socketID !== socket.id);
 
 			// If the player was removed (length changed), mark this room for update
-			if (onlineUsers[roomCode].length !== originalLength) {
+			if (onlineUsers[roomCode]?.length !== originalLength) {
 				roomsToUpdate.push(roomCode);
+				// Reassign leader if the disconnected player was the leader
+				if (wasLeader) {
+					assignNewLeader(roomCode);
+				}
 			}
 
 			// If the room is now empty, you can optionally remove it from the onlineUsers object
-			if (onlineUsers[roomCode].length === 0) {
+			if (onlineUsers[roomCode]?.length === 0) {
 				delete onlineUsers[roomCode];
+				delete lastMovePlayedInRoom[roomCode];
 			}
-			//check if a leader exists
-			//todo could be optimized by checking on disconnect and on join only
-			//if no one is a leader , assign the first one in the room to be one
-			// let existLeaderInRoom = false;
-			// for (let user in onlineUsers[roomCode]) {
-			// 	console.log("user getting looped : ", user);
-			// 	if (user.isLeader) {
-			// 		existLeaderInRoom = true;
-			// 	}
-			// }
-			// if (!existLeaderInRoom) {
-			// 	onlineUsers[roomCode][0].isLeader = true;
-			// }
+			//** */
 		});
 
 		// Emit the updated user list to the rooms that were affected
@@ -186,3 +313,6 @@ mongoose
 
 //TODO IF THE LEADER DISCONNECTS ASSIGN A NEW ONE TO THE ROOM STILL NOT DONE
 //IF GAME ROOM RELOADS A PLAYER GETS DISCONNECTED
+
+//TODO REFACTOR THE ONLINEUSERS ARRAY INTO A MAP FOR BETTER PERFORMANCE IF THE GAME GROWS PORT
+//MIGHT NEED TO REWRITE THE WHOLE INDEX.JS SERVER CODE

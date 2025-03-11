@@ -1,135 +1,309 @@
-import React, {useState, useEffect} from "react";
+import React, {useState, useEffect, useContext} from "react";
 import "./GameBoardGrid.css";
-import GameBoard from "../GameBoard";
+import {SocketContext} from "../../../contexts/SocketContext";
+import {Button, ButtonGroup, Container, Placeholder, Stack, Card} from "react-bootstrap";
+import PlayerAvatarInGrid from "./PlayerAvatarInGrid";
+
+/*
+THIS IS FOR THE PREVIOUS LOGIC OF GAMEBOARD WILL BE IMPORTED HERE FOR LAYOUT REASONS 
+*/
+import {DndContext, DragOverlay, pointerWithin} from "@dnd-kit/core";
+import {useSensor, useSensors, MouseSensor, TouchSensor, KeyboardSensor} from "@dnd-kit/core";
+import {arrayMove, SortableContext, sortableKeyboardCoordinates} from "@dnd-kit/sortable";
+import SortableItem from "../SortableItem";
+import DroppableArea from "../DroppableArea";
+
+/** END **/
 
 const GameBoardGrid = () => {
+	/** PREVIOUS GAMEBOARD LOGIC HERE  **/
+	const [yourCards, setYourCards] = useState(["AH", "2H"]);
+	const [cardsToPlay, setCardsToPlay] = useState(["1B", "2B"]); //cards that the player needs to confirm to play
+	const [activeId, setActiveId] = useState();
+	const [localPlayer, setLocalPlayer] = useState({});
+	const [otherPlayers, setOtherPlayers] = useState([]);
+
+	// dnd-kit sensor setup
+	const mouseSensor = useSensor(MouseSensor);
+	const touchSensor = useSensor(TouchSensor);
+	const keyboardSensor = useSensor(KeyboardSensor, {
+		coordinateGetter: sortableKeyboardCoordinates,
+	});
+
+	const sensors = useSensors(mouseSensor, touchSensor, keyboardSensor);
+
+	const handleDragStart = (event) => {
+		const {active} = event;
+		setActiveId(active.id);
+	};
+
+	const handleDragEnd = (event) => {
+		const {active, over} = event;
+
+		if (!over) {
+			setActiveId(null);
+			return;
+		}
+
+		// Get container IDs
+		const activeContainer = active.data.current?.sortable.containerId;
+		const overContainer = over.id === "your-cards" || over.id === "cards-to-play" ? over.id : over.data.current?.sortable.containerId;
+
+		if (activeContainer === overContainer) {
+			// Handle same container sorting
+			const items = activeContainer === "your-cards" ? yourCards : cardsToPlay;
+			const setItems = activeContainer === "your-cards" ? setYourCards : setCardsToPlay;
+
+			const oldIndex = items.indexOf(active.id);
+			const newIndex = items.indexOf(over.id);
+
+			if (oldIndex !== -1 && newIndex !== -1) {
+				setItems(arrayMove(items, oldIndex, newIndex));
+			}
+		} else if (overContainer) {
+			// Handle moving between containers
+			const sourceItems = activeContainer === "your-cards" ? yourCards : cardsToPlay;
+			const setSourceItems = activeContainer === "your-cards" ? setYourCards : setCardsToPlay;
+			const targetItems = overContainer === "your-cards" ? yourCards : cardsToPlay;
+			const setTargetItems = overContainer === "your-cards" ? setYourCards : setCardsToPlay;
+
+			setSourceItems(sourceItems.filter((item) => item !== active.id));
+			setTargetItems([...targetItems, active.id]);
+		}
+
+		setActiveId(null);
+	};
+	useEffect(() => {
+		console.log("Your cards:", yourCards);
+		console.log("Cards to play:", cardsToPlay);
+	}, [yourCards, cardsToPlay]);
+
+	/** END PREVIOUS GAMEBOARD LOGIC **/
+
 	//TODO THE CLOCK SOULD BE SERVER SIDE FOR SYNCHRONUZATION
 	//TODO START THE GAME LOGIC
-	const [selectedCards, setSelectedCards] = useState([]);
-	const [theme, setTheme] = useState("light"); // Theme state
+
 	const [timeLeft, setTimeLeft] = useState(30); // Timer for the player's turn
-
 	// Timer logic
+
+	const {socket, roomCode} = useContext(SocketContext);
+	const [usersinRoom, setUsersInRoom] = useState([]);
+
+	const [isPlayersDataLoading, setIsPlayersDataLoading] = useState(true); // Add loading state for player avatar placeholders until their avatar loads
+
+	const gameLogic = () => {
+		//HAVE TO IMPLEMENT A START BUTTON CLICKED BY THE LEADER TO START THE GAME
+		//HAVE TO DISTRIBUTE THE CARDS BETWEEN THE 4 PLAYERS
+		//HAVE TO KEEP TRACK OF EACH PLAYER TURN :
+		// FIRST IT GOES IN A CIRCLE FROM P1 TO P4
+		// IF PLAYER ACCUSES AND IS RIGHT : HE TAKES TURN
+		// IF PLAYER ACCUSES AND IS WRONG : THE ACCUSED PLAYS AGAIN
+		//
+	};
+
 	useEffect(() => {
-		if (timeLeft > 0) {
-			const timer = setInterval(() => {
-				setTimeLeft((prevTime) => prevTime - 1);
-			}, 1000);
-			return () => clearInterval(timer);
+		if (!socket.connected) {
+			socket.connect();
 		}
-	}, [timeLeft]);
+		socket.on("updateClock", () => {
+			setTimeLeft((timeLeft) => timeLeft - 1);
+		});
 
-	// Theme switcher handler
-	const toggleTheme = () => {
-		setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
-		document.body.className = theme === "light" ? "bg-gray-900 text-white" : "bg-white text-black";
+		//THIS GETS ALL THE USERS IN THE ROOM
+
+		const getPlayerAndOthers = (usersArray, socketId) => {
+			const player = usersArray.find((user) => user.socketID === socketId);
+			setLocalPlayer(player);
+			const others = usersArray.filter((user) => user.socketID !== socketId);
+			setOtherPlayers(others);
+		};
+
+		socket.emit("getUsersInRoom", roomCode);
+		socket.on("getUsersInRoomR", (usersArray) => {
+			setUsersInRoom(usersArray);
+			setIsPlayersDataLoading(false); // Data is loaded, stop showing placeholders
+			getPlayerAndOthers(usersArray, socket.id);
+			console.log("users in the room array: ", usersArray);
+		});
+
+		socket.on("updateUserList", (usersArray) => {
+			setUsersInRoom(usersArray);
+		});
+		socket.on("startGameR", (roomCode) => {
+			console.log("Game started in room:", roomCode);
+			setGameStarted(true);
+		});
+
+		socket.on("updateLocalPlayer", (player) => {
+			setLocalPlayer(player);
+			console.log("Local player updated:", player);
+		});
+
+		socket.on("updateTurn", (data) => {
+			console.log("Turn updated:", data.currentPlayer);
+			const isMyTurn = data.currentPlayer === socket.id;
+			setLocalPlayerHasTurn(isMyTurn);
+			if (isMyTurn) console.log("I HAVE TURN");
+		});
+		socket.on("gameOver", (winner) => {
+			console.log("Game Over, Winner:", winner);
+		});
+		return () => {
+			socket.off("getUsersInRoomR");
+			socket.off("updateUserList");
+			socket.off("updateTurn");
+			socket.off("gameOver");
+		};
+	}, [socket]);
+
+	useEffect(() => {
+		console.log("Current Player:", localPlayer);
+		console.log("Other Players:", otherPlayers);
+	}, [localPlayer, otherPlayers]);
+
+	//WE HAVE LOCAL PLAYER WHICH IS US , AND THE OTHER PLAYERS IN THE ROOM IN otherPlayers ARRAY
+
+	const [gameStarted, setGameStarted] = useState(false);
+	const [localPlayerHasTurn, setLocalPlayerHasTurn] = useState(false);
+	const startGame = () => {
+		//TODO IMPLEMENT THE GAME START LOGIC HERE
+		socket.emit("startGame", {roomCode: roomCode, socketID: socket.id});
 	};
 
-	const handleCardClick = (card) => {
-		if (selectedCards.includes(card)) {
-			setSelectedCards(selectedCards.filter((c) => c !== card));
-		} else {
-			setSelectedCards([...selectedCards, card]);
+	useEffect(() => {
+		socket.on("receiveCards", (cards) => {
+			console.log("Received my cards:", cards);
+			// Extract the array from the playerCards property
+			setYourCards(cards.playerCards || []); // Use the playerCards array or empty array as fallback
+		});
+
+		return () => {
+			socket.off("receiveCards");
+		};
+	}, [socket]);
+
+	/********  END    ********/
+
+	//TODO IMPLEMENT A FUNCTION THAT TAKES IN THE CARDS IN THE CARDS-TO-PLAY ARRAY AND SENDS THEM TO THE SERVER EITHER WHEN THE TIMER RUNS OUT OR WHEN CONFIRM BUTTON IS CLICKED ,FOR NOW MAKE ONLY CONFIRM BUTTON WORK
+	//hasTurn is a boolean that is true when it is the player's turn
+	const handleConfirmTurn = () => {
+		//THIS HAS TO ACCEPT THE VALUE OF THE SELECT ECH HABETET ELEMENT AND INCLUDE IT IN THE EMIT OF MAKEMOVE SIGNAL
+
+		if (!localPlayerHasTurn || cardsToPlay.length === 0) {
+			return;
 		}
+
+		// Send the played cards to the server
+		socket.emit("makeMove", {
+			roomCode: roomCode,
+			socketID: socket.id,
+			cardsPlayedArray: cardsToPlay,
+		});
+
+		// Clear the cards-to-play area
+		setCardsToPlay([]);
+
+		// Change the local turn state
+		setLocalPlayerHasTurn(false);
 	};
+	const PlayerPlaceholder = () => (
+		<Card style={{width: "150px"}}>
+			<Card.Body>
+				<Placeholder as={Card.Text} animation="glow">
+					<Placeholder xs={10} />
+				</Placeholder>
+				<Placeholder.Button variant="success" xs={6} />
+				<Placeholder.Button variant="danger" xs={6} />
+			</Card.Body>
+		</Card>
+	);
 
 	return (
-		<div className={`container1 ${theme}`}>
-			<div className="interior">
-				<button>
-					<a href="https://youtube.com" target="blank">
-						Home
-					</a>
-				</button>
-			</div>
-			{/* Events Section */}
-			<div className="interior col-span-4">
-				<h6 className="pl-2">EVENTS SECTION EG : PLAYER2 SAYS HE PLAYED 3 CARDS OF 6 OF HEARTS (replace with card image is better :says he played 6x *card_image*)</h6>
-			</div>
-			<div className="interior">
-				{/* Theme Switcher */}
-				<button onClick={toggleTheme} className="px-4 py-2 bg-gray-800 text-white rounded-md shadow-md p-4">
-					{theme === "light" ? "Dark Mode" : "Light Mode"}
-				</button>
-			</div>
-			{/* AD SPACE */}
-			<div className="interior col-span-2 row-span-2  ">AD SPACE</div>
-			{/* CHAT */}
-			<div className="interior row-start-4 col-span-2 row-span-2 bg-amber-400">CHAT HISTORY AND BOX</div>
+		//probably have to pass a handle function for handleAccuse and handlePreorder
+		//for each player avatar
+		<DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+			<div className="container1">
+				{/* first row */}
+				<div className="d-flex justify-center items-center">
+					<Button variant="info">Settings</Button>
+				</div>
+				<div className=" col-span-2 d-flex justify-center items-center">Events section</div>
+				<div className="d-flex justify-center items-center">
+					<Button variant="danger">Quit Game</Button>
+				</div>
+				{/* second row */}
+				<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid avatarPath={`/${otherPlayers[0]?.avatar.replace("/avatars/", "")}`} score={100} />}</div>
+				{/* third row */}
+				<div className="col-span-4 d-flex justify-center">
+					<div className="col-span-4 d-flex justify-around items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid avatarPath={`/${otherPlayers[1]?.avatar.replace("/avatars/", "")}`} score={400} />}</div>
+					{/* FIRST DROPPABLE AREA WHERE APLYER DRAGS CARDS HERE TO PLAY THEIR TURN */}
+					{/* SHOULD DYNAMICALLY LOAD ONLY WHEN ITS THE PLAYERS OWN TURN */}
+					<div className="w-1/3 d-flex justify-center items-center">
+						{/* TODO FIX THE CARDS NOT BEING CENTERED INSIDE OF EACH DROPPABLE AREA  */}
 
-			{/* GAME SCORE */}
-			<div className="interior row-span-2">
-				<ul className="flex flex-col gap-3 items-start">
-					<li>Player1(you) : 50pts</li>
-					<li>Player2 : 70pts</li>
-					<li>Player3 : 90pts</li>
-					<li>Player4 : 100pts</li>
-				</ul>
-			</div>
-
-			<div className="interior col-start-3 row-start-2 col-span-3 ">
-				{/* PLAYER 3 AVATAR */}
-				<div className="row-start-2 col-start-2 flex justify-center items-center">
-					<div className="text-center flex flex-col items-center">
-						<div className="w-9 h-9 bg-green-300 rounded-full mx-auto flex justify-center items-center  pb-1">
-							<img src="/avatars/m1.svg" width={40} />
-						</div>
-						<h6>Player 3</h6>
-						<button className="mt-1 bg-red-500 text-white rounded-md shadow-md">Accuse</button>
+						{localPlayerHasTurn ? (
+							<DroppableArea
+								id="cards-to-play"
+								items={cardsToPlay}
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									position: "relative",
+									width: "100%",
+									maxWidth: "800px",
+									padding: "10px 0",
+									backgroundColor: "#f5f5f5",
+									margin: "10px auto",
+									minHeight: "100px",
+									cursor: "default",
+								}}
+								customDroppableAreaLabel={"Drag your cards here to play your move."}
+							/>
+						) : (
+							<img src="../../../../cardPile.svg" width={200} />
+						)}
 					</div>
+					<div className="col-span-4 d-flex justify-center items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid avatarPath={`/${otherPlayers[2]?.avatar.replace("/avatars/", "")}`} score={200} />}</div>
 				</div>
-			</div>
-			<div className="interior">
-				{/* PLAYER 2 AVATAR */}
-				<div className="row-start-2 col-start-2 flex justify-center items-center">
-					<div className="text-center flex flex-col items-center">
-						<div className="w-9 h-9 bg-green-300 rounded-full mx-auto flex justify-center items-center pb-1">
-							<img src="/avatars/m1.svg" width={40} />
-						</div>
-						<h6>Player 2</h6>
-						<button className="mt-1 bg-red-500 text-white rounded-md shadow-md">Accuse</button>
-					</div>
+				<div className="col-span-4 d-flex justify-around">
+					<div className={`text-2xl font-bold ${timeLeft > 10 ? "text-green-600" : timeLeft > 5 ? "text-yellow-600" : "text-red-600"}`}>{timeLeft > 0 ? `Time left : ${timeLeft}s` : "Time's up!"}</div>
 				</div>
-			</div>
-			<div className="interior">
-				{/* PILE OF PLAYER CARDS */}
-				<div className="row-start-2 col-start-2 flex justify-center items-center pt-4">
-					<div className="text-center flex flex-col items-center">
-						<div className="w-50 h-10  mx-auto flex justify-center items-center pb-2">
-							<img className="pb-2" src="../cardPile.svg" width={200} />
-						</div>
-						<h6>PLAYED CARDS PILE</h6>
-					</div>
-				</div>
-			</div>
-			<div className="interior">
-				{/* PLAYER 4 AVATAR */}
-				<div className="row-start-2 col-start-2 flex justify-center items-center">
-					<div className="text-center flex flex-col items-center">
-						<div className="w-9 h-9 bg-green-300 rounded-full mx-auto flex justify-center items-center pb-1">
-							<img src="/avatars/m1.svg" width={40} />
-						</div>
-						<h6>Player 4</h6>
-						<button className="mt-1 bg-red-500 text-white rounded-md shadow-md">Accuse</button>
-					</div>
-				</div>
-			</div>
-
-			{/* TURN MANAGER */}
-			<div className="interior col-span-3 bg-blue-300 flex flex-col items-center justify-center pt-1">
-				{/* clock then my cards then suits then confirm/cancel */}
-				{/* Clock Section */}
-				<p className="font-bold bg-yellow-300 text-black rounded-md px-4 py-2 shadow-md">Time Left: {timeLeft}s</p>
-				{/* Card Numbers Dropdown */}
-				<div className="w-50 pt-1">
-					<div className="card-number-dropdown pt-1 flex">
-						<label htmlFor="cardNumber" className="text-sm  font-medium mx-2 mb-1 ">
-							Ech Habetet:
-						</label>
-						<select id="cardNumber" name="cardNumber" className="bg-white border border-black rounded-md px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400" style={{width: "100px"}}>
-							<option value="" disabled selected>
-								Select
-							</option>
+				{/* third row */}
+				<div className="col-span-2">Chat box</div>
+				<div className="d-flex flex-col justify-center items-center">
+					{!gameStarted ? (
+						localPlayer?.isLeader ? (
+							<Button variant="success" onClick={startGame}>
+								Start Game
+							</Button>
+						) : (
+							<p>Waiting for the leader to start the game</p>
+						)
+					) : (
+						<DroppableArea
+							id="your-cards"
+							items={Array.isArray(yourCards) ? yourCards : []} // Ensure items is always an array
+							style={{
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								position: "relative",
+								width: "100%",
+								maxWidth: "800px",
+								padding: "10px 0",
+								backgroundColor: "#e0e0e0",
+								margin: "10px auto",
+								minHeight: "100px",
+								cursor: "default",
+							}}
+							customDroppableAreaLabel={"Drag your cards here to keep them in your hand"}
+						/>
+					)}
+					{/* THIS SHOULD BE CONDITIONALLY RENDERED AFTER THE PLAYER ACCUSED ANOTHER AND WON */}
+					<div className="d-flex justify-center items-center gap-2 p-2 mb-2 bg-amber-200 text-blue-950">
+						<label htmlFor="newSelectedCardToPlay">Ech Habetet : </label>
+						<select id="newSelectedCardToPlay">
 							{["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"].map((card) => (
 								<option key={card} value={card}>
 									{card}
@@ -137,25 +311,31 @@ const GameBoardGrid = () => {
 							))}
 						</select>
 					</div>
+					<div className="d-flex justify-center items-center gap-2">
+						<Button variant="success" disabled={!localPlayerHasTurn || cardsToPlay.length === 0} onClick={handleConfirmTurn}>
+							Confirm
+						</Button>
+						<Button variant="danger">Cancel</Button>
+					</div>
 				</div>
-				{/* Confirm or Cancel Buttons */}
-				<div className="pt-1 flex space-x-4">
-					<button className="bg-green-500 text-white px-4 py-1 rounded-md shadow-md text-sm">Confirm</button>
-					<button className="bg-red-500 text-white px-4 py-1 rounded-md shadow-md text-sm">Cancel</button>
+				<div>
+					<ul className="d-flex flex-column gap-4 justify-center" style={{height: "100%"}}>
+						<li>Shield:1</li>
+						<li>Skip:2</li>
+						<li>True Vision:3</li>
+					</ul>
 				</div>
-				<GameBoard />
 			</div>
-
-			{/* Power-ups */}
-			<div className="interior row-span-2 flex flex-col col-start-6 bg-amber-400 rounded-md shadow-md p-4 ">
-				<p className="text-sm font-bold mb-2">My Power-ups</p>
-				<ul className="text-m pl-4">
-					<li>Shield</li>
-					<li>Make a Player Skip</li>
-				</ul>
-			</div>
-		</div>
+			<DragOverlay>{activeId ? <SortableItem id={activeId} title={activeId} /> : null}</DragOverlay>
+		</DndContext>
 	);
 };
+//TODO ADD ECH HABETET SECTION AND ADD BUTTON FOR CONFIRM / CANCEL TURN DONE
+//THE TURN ENDS WITH CONFIRM OR WITH THE CLOCK TIME RUNNING OUT
+//IF THE TIMER RUNS AND THE PLAYER HAS NOT CONFIRMED HIS MOVE THE TURN IS AUTOMATICALLY PASSED
+// AND START WORKING ON THE GAME LOGIC
+//DONE ADD BUTTON TO START GAME BY LEADER
+//START GAME AND GET SHUFFLED CARDS TO EACH SOCKET PRIVATELY
+//ISSUE : DISABLE POSSIBLITY TO CREATE GAMEROOMS WITH CUSTOM ROOMCODES
 
 export default GameBoardGrid;

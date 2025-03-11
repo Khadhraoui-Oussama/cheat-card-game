@@ -1,4 +1,3 @@
-// DroppableArea.jsx
 import React from "react";
 import {SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable";
 import SortableItem from "./SortableItem";

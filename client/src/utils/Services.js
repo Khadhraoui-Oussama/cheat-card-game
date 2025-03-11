@@ -19,13 +19,13 @@ export const postRequest = async (url, body) => {
 		} else {
 			message = data;
 		}
-		return { error: true, message };
+		return {error: true, message};
 	}
 	return data;
 };
 
 export const getRequest = async (url, body) => {
-	const response = await fetch(url, body);
+	const response = await fetch(url);
 	const data = await response.json();
 
 	if (!response.ok) {
@@ -36,7 +36,7 @@ export const getRequest = async (url, body) => {
 		} else {
 			message = data;
 		}
-		return { error: true, message };
+		return {error: true, message};
 	}
 	return data;
 };

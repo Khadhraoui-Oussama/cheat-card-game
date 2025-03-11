@@ -137,17 +137,21 @@ table {
 
 * {
     /* For debugging layout */
-    /* outline: black solid 1px; */
+    outline: black solid 1px;
 }
 
 .container1 {
     height: 100vh;
     width: 100vw;
     display: grid;
-    grid-template-rows: 1.25fr .5fr .5fr 4fr;
+    grid-template-columns: 1fr 1fr 6fr 1.25fr;
     /* grid-template-columns: 2.5fr 2fr 2fr 1fr 2fr; */
-    grid-template-columns: 1.25fr 0.5fr 1fr 2fr 1fr 1.5fr;
+    grid-template-rows: .75fr .75fr 1.5fr .5fr 2.5fr;
 
+}
+
+.container1>* {
+    outline: red solid 1px;
 }
 
 .interior {
