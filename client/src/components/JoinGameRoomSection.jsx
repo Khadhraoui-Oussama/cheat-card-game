@@ -50,6 +50,7 @@ const JoinGameSection = () => {
 					setRoomCode(e.target.value);
 					//working good checked with console.Log
 				}}
+				id="room-code"
 			/>
 			<Button
 				onClick={() => {

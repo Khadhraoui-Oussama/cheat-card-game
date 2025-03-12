@@ -21,9 +21,10 @@ const LandingPage = () => {
 	}, []); //ON MOUNT SET THE PLAYER OBJECT TO THE ABOVE , WHAT HAPPENS WHEN THE PLAYER DISCONNECTS AND COMES BACK PROBABLY NEED TO ACCESS INTERNAL SOTRAGE
 
 	const handleCreateNewRoom = () => {
-		//TODO CHECK FOR THE AVATAR AND THE NAME IN THE PLAYER ARE SET BEFORE JOINING
-		// min of avatar length
-		socket.emit("getRoomSize", roomCode);
+		// Clear any existing room code when creating a new game
+		setRoomCode("");
+		// Emit getRoomSize with empty string to generate new room
+		socket.emit("getRoomSize", "");
 		socket.on("getRoomSizeR", (roomSize) => {
 			if (roomSize) {
 				setJoinAlert(true);
