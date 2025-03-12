@@ -18,6 +18,7 @@ import LastCardDisplay from "../LastCardDisplay";
 import PowerupAnimation from "../PowerupAnimation/PowerupAnimation";
 import PlayerSelectionModal from "../PlayerSelectionModal/PlayerSelectionModal";
 import CardsRevealModal from "../CardsRevealModal/CardsRevealModal";
+import ChatBox from "../ChatBox/ChatBox";
 
 const GameBoardGrid = () => {
 	/** PREVIOUS GAMEBOARD LOGIC HERE  **/
@@ -493,7 +494,9 @@ const GameBoardGrid = () => {
 						<div className={`text-2xl font-bold ${timeLeft > 10 ? "text-green-600" : timeLeft > 5 ? "text-yellow-600" : "text-red-600"}`}>{timeLeft > 0 ? `Time left : ${timeLeft}s` : "Time's up!"}</div>
 					</div>
 					{/* third row */}
-					<div className="col-span-2">Chat box</div>
+					<div className="col-span-2 h-100 d-flex flex-column">
+						<ChatBox socket={socket} roomCode={roomCode} playerName={localPlayer?.name} />
+					</div>
 					<div className="d-flex flex-col justify-center items-center">
 						{!gameStarted ? (
 							localPlayer?.isLeader ? (

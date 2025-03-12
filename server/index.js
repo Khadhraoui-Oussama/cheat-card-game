@@ -111,6 +111,7 @@ const findNextTurn = (socketID, roomCode) => {
 // Add at the top with other global variables
 const TURN_DURATION = 30; // Duration of each turn in seconds
 const roomTimers = new Map(); // Store timer intervals for each room
+const chatHistory = new Map(); // Store chat history for each room
 
 // Add this function near other helper functions
 const startRoomTimer = (roomCode, currentPlayerSocket) => {
@@ -658,6 +659,59 @@ io.on("connection", (socket) => {
 			accusedId: accusedPlayerID,
 			accused: true,
 		});
+	});
+
+	socket.on("sendMessage", ({roomCode, message, playerName}) => {
+		const messageData = {
+			playerName,
+			message,
+			timestamp: Date.now(),
+		};
+
+		// Store message in history
+		if (!chatHistory.has(roomCode)) {
+			chatHistory.set(roomCode, []);
+		}
+		chatHistory.get(roomCode).push(messageData);
+
+		// Keep only last 50 messages
+		if (chatHistory.get(roomCode).length > 50) {
+			chatHistory.get(roomCode).shift();
+		}
+
+		// Broadcast to room
+		io.to(roomCode).emit("chatMessage", messageData);
+	});
+
+	socket.on("getChatHistory", (roomCode) => {
+		const history = chatHistory.get(roomCode) || [];
+		socket.emit("chatHistory", history);
+	});
+
+	// Add system messages for game events
+	const sendSystemMessage = (roomCode, message) => {
+		const messageData = {
+			message,
+			isSystemMessage: true,
+			timestamp: Date.now(),
+		};
+		if (!chatHistory.has(roomCode)) {
+			chatHistory.set(roomCode, []);
+		}
+		chatHistory.get(roomCode).push(messageData);
+		io.to(roomCode).emit("chatMessage", messageData);
+	};
+
+	// Use sendSystemMessage in your existing game events
+	socket.on("startGame", ({roomCode}) => {
+		// ...existing code...
+		sendSystemMessage(roomCode, "Game has started!");
+	});
+
+	socket.on("makeMove", ({roomCode, socketID}) => {
+		// ...existing code...
+		const player = onlineUsers[roomCode].find((u) => u.socketID === socketID);
+		sendSystemMessage(roomCode, `${player.name} played their cards.`);
 	});
 });
 
