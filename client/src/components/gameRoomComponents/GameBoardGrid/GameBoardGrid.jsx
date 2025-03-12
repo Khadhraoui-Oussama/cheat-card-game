@@ -13,6 +13,7 @@ import {arrayMove, SortableContext, sortableKeyboardCoordinates} from "@dnd-kit/
 import SortableItem from "../SortableItem";
 import DroppableArea from "../DroppableArea";
 import LastCardDisplay from "../LastCardDisplay";
+import PowerupAnimation from "../PowerupAnimation/PowerupAnimation";
 
 /** END **/
 
@@ -84,9 +85,6 @@ const GameBoardGrid = () => {
 	//TODO THE CLOCK SOULD BE SERVER SIDE FOR SYNCHRONUZATION
 	//TODO START THE GAME LOGIC
 
-	const [timeLeft, setTimeLeft] = useState(30); // Timer for the player's turn
-	// Timer logic
-
 	const {socket, roomCode} = useContext(SocketContext);
 	const [usersinRoom, setUsersInRoom] = useState([]);
 
@@ -110,13 +108,14 @@ const GameBoardGrid = () => {
 	const [lastPlayedPlayer, setLastPlayedPlayer] = useState(null);
 	const [lastCardPresented, setLastCardPresented] = useState(null);
 
+	// Add state for animation
+	const [showPowerupAnimation, setShowPowerupAnimation] = useState(false);
+	const [powerupAnimationId, setPowerupAnimationId] = useState(null);
+	const [lastPowerupReceiver, setLastPowerupReceiver] = useState(null);
 	useEffect(() => {
 		if (!socket.connected) {
 			socket.connect();
 		}
-		socket.on("updateClock", () => {
-			setTimeLeft((timeLeft) => timeLeft - 1);
-		});
 
 		//THIS GETS ALL THE USERS IN THE ROOM
 
@@ -194,7 +193,21 @@ const GameBoardGrid = () => {
 		socket.on("lastCardPresented", (data) => {
 			setLastCardPresented(data);
 		});
+		// Update the playPowerupDice socket handler
+		socket.on("playPowerupDice", (data) => {
+			console.log("Powerup dice data:", data);
+			setPowerupAnimationId(data.powerUpID);
+			setLastPowerupReceiver(data.accuserName);
+			setShowPowerupAnimation(true);
 
+			// Update powerup button state using data directly from event
+			if (data.accuserID === socket.id) {
+				setEnablePowerupsButtonState((prev) => ({
+					...prev,
+					[data.powerUpID]: prev[data.powerUpID] + 1,
+				}));
+			}
+		});
 		return () => {
 			socket.off("getUsersInRoomR");
 			socket.off("updateUserList");
@@ -290,6 +303,31 @@ const GameBoardGrid = () => {
 	);
 
 	const [isNewTurn, setIsNewTurn] = useState(false); //to be updtaed when the player wins the accusation wether accuser or accused
+	const [enablePowerupsButtonState, setEnablePowerupsButtonState] = useState({0: 0, 1: 0, 2: 0, 3: 0});
+
+	// Separate timer-related state and effects
+	const [timeLeft, setTimeLeft] = useState(30);
+
+	// Add a dedicated effect for timer-related socket events
+	useEffect(() => {
+		socket.on("updateTimer", (newTimeLeft) => {
+			setTimeLeft(newTimeLeft);
+		});
+
+		socket.on("turnTimedOut", () => {
+			if (localPlayerHasTurn) {
+				setYourCards((prevCards) => [...prevCards, ...cardsToPlay]);
+				setCardsToPlay([]);
+				setEventMessage("Time's up! Cards returned to hand.");
+			}
+			setLocalPlayerHasTurn(false);
+		});
+
+		return () => {
+			socket.off("updateTimer");
+			socket.off("turnTimedOut");
+		};
+	}, [socket, localPlayerHasTurn, cardsToPlay]);
 
 	return (
 		<DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -396,15 +434,33 @@ const GameBoardGrid = () => {
 					</div>
 					<div>
 						<ul className="d-flex flex-column gap-4 justify-center" style={{height: "100%"}}>
-							<li>Shield:1</li>
-							<li>Skip:2</li>
-							<li>True Vision:3</li>
+							<li>
+								<Button disabled={enablePowerupsButtonState[0] == 0}>Shield : {enablePowerupsButtonState[0]}</Button>
+							</li>
+							<li>
+								<Button disabled={enablePowerupsButtonState[1] == 0}>True Vision : {enablePowerupsButtonState[1]}</Button>
+							</li>
+							<li>
+								<Button disabled={enablePowerupsButtonState[2] == 0}>Cleanse : {enablePowerupsButtonState[2]}</Button>
+							</li>
+
+							<li>
+								<Button disabled={enablePowerupsButtonState[3] == 0}> Skip a player : {enablePowerupsButtonState[3]}</Button>
+							</li>
 						</ul>
 					</div>
 				</div>
 				<LastCardDisplay className="bg-amber-950" lastCardInfo={lastCardPresented} />
 			</div>
 			<DragOverlay>{activeId ? <SortableItem id={activeId} title={activeId} /> : null}</DragOverlay>
+			<PowerupAnimation
+				isVisible={showPowerupAnimation}
+				powerUpID={powerupAnimationId}
+				onAnimationComplete={() => {
+					setShowPowerupAnimation(false);
+					setEventMessage(`Powerup granted! to ${lastPowerupReceiver}`);
+				}}
+			/>
 		</DndContext>
 	);
 };

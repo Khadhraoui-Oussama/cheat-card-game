@@ -92,6 +92,81 @@ const assignNewLeader = (roomCode) => {
 	}
 };
 
+/**
+ *
+ *
+ */
+const findNextTurn = (socketID, roomCode) => {
+	//could be interrupted by accuse action in that case : 2 cases arise :
+	//if accuser is right the turn goes to the accuser
+	//if accuser is wrong the turn goes to the accused
+	//need a way to store the accused and the accuser
+	//also need to find a way to get the actiontype so it can be displayed in events section
+	//circular motion of turns thanks to moudlo operator
+	const currentPlayerIndex = onlineUsers[roomCode]?.findIndex((player) => player.socketID === socketID);
+	const nextPlayerIndex = (currentPlayerIndex + 1) % onlineUsers[roomCode]?.length;
+	return onlineUsers[roomCode][nextPlayerIndex];
+};
+
+// Add at the top with other global variables
+const TURN_DURATION = 30; // Duration of each turn in seconds
+const roomTimers = new Map(); // Store timer intervals for each room
+
+// Add this function near other helper functions
+const startRoomTimer = (roomCode, currentPlayerSocket) => {
+	// Clear any existing timer for this room
+	if (roomTimers.has(roomCode)) {
+		clearInterval(roomTimers.get(roomCode).intervalId);
+	}
+
+	let timeLeft = TURN_DURATION;
+
+	// Initialize timer for all clients
+	io.to(roomCode).emit("updateTimer", timeLeft);
+
+	const intervalId = setInterval(() => {
+		timeLeft--;
+
+		// Send updated time to all clients in room
+		io.to(roomCode).emit("updateTimer", timeLeft);
+
+		// When timer reaches 0
+		if (timeLeft === 0) {
+			clearInterval(intervalId);
+			roomTimers.delete(roomCode);
+
+			// Force turn end
+			const currentPlayer = onlineUsers[roomCode]?.find((p) => p.socketID === currentPlayerSocket);
+			if (currentPlayer) {
+				// Signal client to return cards
+				io.to(currentPlayerSocket).emit("turnTimedOut");
+
+				// Find and give turn to next player
+				const nextPlayer = findNextTurn(currentPlayerSocket, roomCode);
+				handleTurnChange(roomCode, nextPlayer.socketID, currentPlayer);
+			}
+		}
+	}, 1000);
+
+	roomTimers.set(roomCode, {
+		intervalId,
+		playerSocket: currentPlayerSocket,
+	});
+};
+
+// Modify handleTurnChange function
+const handleTurnChange = (roomCode, nextPlayerSocket, currentPlayer) => {
+	// Update turn
+	io.to(roomCode).emit("updateTurn", {
+		currentPlayer: nextPlayerSocket,
+		lastPlayedPlayer: currentPlayer?.socketID,
+		newTurnStatus: true,
+	});
+
+	// Start new timer for next player
+	startRoomTimer(roomCode, nextPlayerSocket);
+};
+
 io.on("connection", (socket) => {
 	socket.on("joinRoom", (dataArray) => {
 		/*	in data array 
@@ -167,6 +242,8 @@ io.on("connection", (socket) => {
 			player.preOrderInfo = {isPreordered: false, playerWhoPreordered: null}; // Set the player's preordered status to false
 			player.issuedPreorderDetails = {hasIssuedPreorder: false, playerIssuedAgainstID: null}; // Set the player's issuedPreorder status to false
 			player.score = 0; // Set the player's score to 0
+			//powerups ids : shield : 0, trueVision : 1, cleanse : 2, skipAnothersTurn : 3
+			player.powerups = {0: 0, 1: 0, 2: 0, 3: 0}; // Set the player's powerups to 0
 			if (player.isLeader) {
 				player.hasTurn = true;
 			} else {
@@ -186,7 +263,8 @@ io.on("connection", (socket) => {
 			//io.to(player.socketID).emit("updateLocalPlayer", localPlayer);
 		});
 		//GIVE TURN TO THE GAME ROOM LEADER
-		io.to(roomCode).emit("updateTurn", {currentPlayer: localPlayer.socketID, newTurnStatus: true});
+		handleTurnChange(roomCode, localPlayer.socketID, null);
+		io.to(roomCode).emit("startGameR", roomCode);
 
 		// Update the onlineUsers object with the modified players
 		onlineUsers[roomCode] = players;
@@ -206,18 +284,7 @@ io.on("connection", (socket) => {
 		return {winnerBOOL, winnerPlayerObject: winnerBOOL ? winnerPlayerObject : null};
 	};
 
-	const findNextTurn = (socketID, roomCode) => {
-		//could be interrupted by accuse action in that case : 2 cases arise :
-		//if accuser is right the turn goes to the accuser
-		//if accuser is wrong the turn goes to the accused
-		//need a way to store the accused and the accuser
-		//also need to find a way to get the actiontype so it can be displayed in events section
-		//circular motion of turns thanks to moudlo operator
-		const currentPlayerIndex = onlineUsers[roomCode]?.findIndex((player) => player.socketID === socketID);
-		const nextPlayerIndex = (currentPlayerIndex + 1) % onlineUsers[roomCode]?.length;
-		return onlineUsers[roomCode][nextPlayerIndex];
-	};
-
+	// Modify makeMove handler where turn changes occur
 	socket.on("makeMove", ({roomCode, socketID, cardsPlayedArray, cardValueTold, isNewTurn, isFinalCard}) => {
 		try {
 			// Find the current player
@@ -234,17 +301,10 @@ io.on("connection", (socket) => {
 					currentPlayer.cards = [...currentPlayer.cards, ...pileOfCardsInEachRoom[roomCode]];
 					pileOfCardsInEachRoom[roomCode] = [];
 
+					handleTurnChange(roomCode, socketID, currentPlayer);
 					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} lied about their final card and must take all cards from the pile, then play again!`);
 
-					// Update the player's cards
 					io.to(currentPlayer.socketID).emit("updateLocalPlayer", currentPlayer);
-					//if lied about their final card , they must take all cards , and take turn again
-					const lastPlayedPlayer = socketID;
-					io.to(roomCode).emit("updateTurn", {
-						currentPlayer: socketID,
-						lastPlayedPlayer: lastPlayedPlayer,
-						newTurnStatus: true,
-					});
 				} else {
 					// Player won!
 					io.to(roomCode).emit("gameOver", currentPlayer);
@@ -310,11 +370,7 @@ io.on("connection", (socket) => {
 				const lastPlayedPlayer = socketID;
 				const nextPlayer = findNextTurn(socketID, roomCode);
 
-				io.to(roomCode).emit("updateTurn", {
-					currentPlayer: nextPlayer.socketID,
-					lastPlayedPlayer: lastPlayedPlayer,
-					newTurnStatus: false,
-				});
+				handleTurnChange(roomCode, nextPlayer.socketID, currentPlayer);
 
 				io.to(roomCode).emit("updateGameEventMessage", `${onlineUsers[roomCode]?.find((player) => player.socketID === socketID).name} has played their turn : ${cardsPlayedArray.length} ${cardsPlayedArray.length == 1 ? "card" : "cards"} of value : ${cardValueTold}`);
 			}
@@ -322,6 +378,8 @@ io.on("connection", (socket) => {
 			console.log("Error in makeMove:", error, " \n");
 		}
 	});
+
+	// Modify accuse handler
 	socket.on("accuse", ({roomCode, socketID, accusedPlayerID}) => {
 		try {
 			if (!roomCode || !socketID || !accusedPlayerID) {
@@ -355,16 +413,25 @@ io.on("connection", (socket) => {
 				// Accused takes all cards
 				accused.cards = [...accused.cards, ...pileOfCardsInEachRoom[roomCode]];
 				pileOfCardsInEachRoom[roomCode] = [];
-
-				io.to(roomCode).emit("updateTurn", {currentPlayer: socketID});
+				//grant a powerup to the accuser
+				const powerUpID = Math.floor(Math.random() * 4);
+				accuser.powerups[powerUpID] += 1;
+				onlineUsers[roomCode]?.forEach((player) => {
+					if (player.socketID === accuser.socketID) player = accuser;
+				});
+				io.to(roomCode).emit("playPowerupDice", {accuserID: socketID, accuserName: accuser.name, powerUpID: powerUpID});
+				handleTurnChange(roomCode, socketID, accused);
 				io.to(roomCode).emit("updateGameEventMessage", `Accuser ${accuser.name} was right, ${accused.name} takes all cards , and ${accuser.name} has TURN`);
 			} else {
 				// Accuser takes all cards
 				accuser.cards = [...accuser.cards, ...pileOfCardsInEachRoom[roomCode]];
 				pileOfCardsInEachRoom[roomCode] = [];
 				// Give turn to accused
+				handleTurnChange(roomCode, accusedPlayerID, accuser);
+				onlineUsers[roomCode]?.forEach((player) => {
+					if (player.socketID === accused.socketID) player = accused;
+				});
 				io.to(accuser.socketID).emit("updateLocalPlayer", accuser);
-				io.to(roomCode).emit("updateTurn", {currentPlayer: accusedPlayerID});
 				io.to(roomCode).emit("updateGameEventMessage", `Accuser ${accuser.name} was wrong, ${accuser.name} takes all cards , and ${accused.name} has TURN`);
 			}
 
@@ -511,6 +578,14 @@ io.on("connection", (socket) => {
 		});
 
 		console.log("Updated Online Users:", onlineUsers);
+
+		// Add cleanup when game ends or room is destroyed
+		Object.keys(onlineUsers).forEach((roomCode) => {
+			if (roomTimers.has(roomCode)) {
+				clearInterval(roomTimers.get(roomCode).intervalId);
+				roomTimers.delete(roomCode);
+			}
+		});
 	});
 });
 
@@ -560,4 +635,9 @@ A PLAYER CAN PLAY ALL HIS CARDS EXCEPT HE HAS TO KEEP ONE IN HAND TO NOT WIN AUT
 AND ONLY WHEN HE HAS ONLY ONE CARD LEFT THEN HE CAN PLAY IT FACE UP AND WIN ,
 IF HE PLAYS THE LAST CARD FACE UP AND IT IS NOT THE SAME AS THE CARD VALUE TOLD THEN HE HAS TO TAKE THE WHOLE PILE OF CARDS TO HIS HAND ELSE HE WINS
 DONE EXCEPT FOR THE LAST CARD BEING FACE UP
+
+TODO IMPLEMENT THE TIMER LOGIC WHEN STARTING A TURN AND STUFF
+TODO IMPLEMENT THE CHATBOX 
+TODO IMLEMENT THE POWERUPS LOGIC , SHIELD TO PROTECT AGAINST AN ACCUSE ,MAKE A PLAYER SKIP THEIR TURN ,TRUE VISION TO SELECT A PLAYERS HAND TO SEE IT , CLEANSE REMOVES YOUR PREORDER FOR THE TURN
+WHEN A PLAYER ACCUSES SOMEONE AND IS RIGHT ,  A DICE ROLLS AND THE ACCUSER GETS A RANDOM POWERUP
 */
