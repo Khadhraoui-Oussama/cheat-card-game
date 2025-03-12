@@ -12,13 +12,14 @@ import {useSensor, useSensors, MouseSensor, TouchSensor, KeyboardSensor} from "@
 import {arrayMove, SortableContext, sortableKeyboardCoordinates} from "@dnd-kit/sortable";
 import SortableItem from "../SortableItem";
 import DroppableArea from "../DroppableArea";
+import LastCardDisplay from "../LastCardDisplay";
 
 /** END **/
 
 const GameBoardGrid = () => {
 	/** PREVIOUS GAMEBOARD LOGIC HERE  **/
-	const [yourCards, setYourCards] = useState(["AH", "2H"]);
-	const [cardsToPlay, setCardsToPlay] = useState(["1B", "2B"]); //cards that the player needs to confirm to play
+	const [yourCards, setYourCards] = useState([]);
+	const [cardsToPlay, setCardsToPlay] = useState([]); //cards that the player needs to confirm to play
 	const [activeId, setActiveId] = useState();
 	const [localPlayer, setLocalPlayer] = useState({});
 	const [otherPlayers, setOtherPlayers] = useState([]);
@@ -101,6 +102,14 @@ const GameBoardGrid = () => {
 		//
 	};
 
+	const [gameStarted, setGameStarted] = useState(false);
+	const [localPlayerHasTurn, setLocalPlayerHasTurn] = useState(false);
+	const [currentTurnPlayer, setCurrentTurnPlayer] = useState(null);
+	const [eventMessage, setEventMessage] = useState("All game events will be displayed here.");
+	const [currentCardValuePlaying, setCurrentCardValuePlaying] = useState(null);
+	const [lastPlayedPlayer, setLastPlayedPlayer] = useState(null);
+	const [lastCardPresented, setLastCardPresented] = useState(null);
+
 	useEffect(() => {
 		if (!socket.connected) {
 			socket.connect();
@@ -111,10 +120,10 @@ const GameBoardGrid = () => {
 
 		//THIS GETS ALL THE USERS IN THE ROOM
 
-		const getPlayerAndOthers = (usersArray, socketId) => {
-			const player = usersArray.find((user) => user.socketID === socketId);
+		const getPlayerAndOthers = (usersArray) => {
+			const player = usersArray.find((user) => user.socketID === socket.id);
 			setLocalPlayer(player);
-			const others = usersArray.filter((user) => user.socketID !== socketId);
+			const others = usersArray.filter((user) => user.socketID !== socket.id);
 			setOtherPlayers(others);
 		};
 
@@ -122,7 +131,7 @@ const GameBoardGrid = () => {
 		socket.on("getUsersInRoomR", (usersArray) => {
 			setUsersInRoom(usersArray);
 			setIsPlayersDataLoading(false); // Data is loaded, stop showing placeholders
-			getPlayerAndOthers(usersArray, socket.id);
+			getPlayerAndOthers(usersArray);
 			console.log("users in the room array: ", usersArray);
 		});
 
@@ -136,23 +145,64 @@ const GameBoardGrid = () => {
 
 		socket.on("updateLocalPlayer", (player) => {
 			setLocalPlayer(player);
+			setYourCards(player.cards);
 			console.log("Local player updated:", player);
 		});
 
 		socket.on("updateTurn", (data) => {
+			setIsNewTurn(data.newTurnStatus);
 			console.log("Turn updated:", data.currentPlayer);
 			const isMyTurn = data.currentPlayer === socket.id;
+			console.log("Is my turn:", isMyTurn, " data.currentplayer :", data.currentPlayer);
 			setLocalPlayerHasTurn(isMyTurn);
+			if (isMyTurn) {
+				setLocalPlayer((prev) => ({
+					...prev,
+					hasTurn: true,
+				}));
+			} else {
+				setLocalPlayer((prev) => ({
+					...prev,
+					hasTurn: false,
+				}));
+			}
+			setCurrentTurnPlayer(data.currentPlayer);
+			setLastPlayedPlayer(data.lastPlayedPlayer); // Add this
 			if (isMyTurn) console.log("I HAVE TURN");
 		});
 		socket.on("gameOver", (winner) => {
 			console.log("Game Over, Winner:", winner);
 		});
+		socket.on("receiveCards", (player) => {
+			console.log("Received my cards:", player.cards); // Log the received cards
+			// Extract the array from the playerCards property
+			setYourCards(player.cards); // Use the playerCards array or empty array as fallback
+			setLocalPlayer(player);
+		});
+		socket.on("accusePlayer", (data) => {
+			// {cardsPlayedArray, cardValueTold}
+			const {roomCode, socketID, accusedPlayerID} = data;
+			socket.emit("accuse", {roomCode, socketID, accusedPlayerID});
+			console.log("accusing player:", {roomCode, socketID, accusedPlayerID});
+		});
+		socket.on("updateGameEventMessage", (message) => {
+			setEventMessage(message);
+		});
+		socket.on("updateNewTurnStatus", (status) => {
+			setIsNewTurn(status);
+		});
+		socket.on("lastCardPresented", (data) => {
+			setLastCardPresented(data);
+		});
+
 		return () => {
 			socket.off("getUsersInRoomR");
 			socket.off("updateUserList");
 			socket.off("updateTurn");
 			socket.off("gameOver");
+			socket.off("receiveCards");
+			socket.off("updateLocalPlayer");
+			socket.off("lastCardPresented");
 		};
 	}, [socket]);
 
@@ -163,49 +213,70 @@ const GameBoardGrid = () => {
 
 	//WE HAVE LOCAL PLAYER WHICH IS US , AND THE OTHER PLAYERS IN THE ROOM IN otherPlayers ARRAY
 
-	const [gameStarted, setGameStarted] = useState(false);
-	const [localPlayerHasTurn, setLocalPlayerHasTurn] = useState(false);
 	const startGame = () => {
 		//TODO IMPLEMENT THE GAME START LOGIC HERE
 		socket.emit("startGame", {roomCode: roomCode, socketID: socket.id});
 	};
 
-	useEffect(() => {
-		socket.on("receiveCards", (cards) => {
-			console.log("Received my cards:", cards);
-			// Extract the array from the playerCards property
-			setYourCards(cards.playerCards || []); // Use the playerCards array or empty array as fallback
-		});
-
-		return () => {
-			socket.off("receiveCards");
-		};
-	}, [socket]);
-
+	//THIS WORKS DONT CHANGE IT
+	const handleCancelTurn = () => {
+		// Clear the cards-to-play area
+		setYourCards([...yourCards, ...cardsToPlay]);
+		setCardsToPlay([]);
+		console.log("Turn cancelled");
+	};
 	/********  END    ********/
 
 	//TODO IMPLEMENT A FUNCTION THAT TAKES IN THE CARDS IN THE CARDS-TO-PLAY ARRAY AND SENDS THEM TO THE SERVER EITHER WHEN THE TIMER RUNS OUT OR WHEN CONFIRM BUTTON IS CLICKED ,FOR NOW MAKE ONLY CONFIRM BUTTON WORK
 	//hasTurn is a boolean that is true when it is the player's turn
 	const handleConfirmTurn = () => {
-		//THIS HAS TO ACCEPT THE VALUE OF THE SELECT ECH HABETET ELEMENT AND INCLUDE IT IN THE EMIT OF MAKEMOVE SIGNAL
-
 		if (!localPlayerHasTurn || cardsToPlay.length === 0) {
 			return;
 		}
 
-		// Send the played cards to the server
-		socket.emit("makeMove", {
-			roomCode: roomCode,
-			socketID: socket.id,
-			cardsPlayedArray: cardsToPlay,
-		});
+		// Check if player is trying to play all cards except their last one
+		if (yourCards.length === 0 && cardsToPlay.length > 1) {
+			setEventMessage("You must keep at least one card in your hand!");
+			return;
+		}
 
-		// Clear the cards-to-play area
+		// Handle final card play
+		if (yourCards.length === 0 && cardsToPlay.length === 1) {
+			// Get card value for the final play
+			const selectElement = document.getElementById("newSelectedCardToPlay");
+			const cardValueTold = selectElement?.value || null;
+
+			socket.emit("makeMove", {
+				roomCode,
+				socketID: socket.id,
+				cardsPlayedArray: cardsToPlay,
+				isNewTurn,
+				cardValueTold,
+				isFinalCard: true,
+			});
+		} else {
+			// Normal turn
+			let cardValueTold = null;
+			const selectElement = document.getElementById("newSelectedCardToPlay");
+			if (selectElement && isNewTurn) {
+				cardValueTold = selectElement.value;
+			}
+
+			socket.emit("makeMove", {
+				roomCode,
+				socketID: socket.id,
+				cardsPlayedArray: cardsToPlay,
+				isNewTurn,
+				cardValueTold,
+				isFinalCard: false,
+			});
+		}
+
 		setCardsToPlay([]);
-
-		// Change the local turn state
 		setLocalPlayerHasTurn(false);
+		setIsNewTurn(false);
 	};
+
 	const PlayerPlaceholder = () => (
 		<Card style={{width: "150px"}}>
 			<Card.Body>
@@ -218,33 +289,69 @@ const GameBoardGrid = () => {
 		</Card>
 	);
 
-	return (
-		//probably have to pass a handle function for handleAccuse and handlePreorder
-		//for each player avatar
-		<DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-			<div className="container1">
-				{/* first row */}
-				<div className="d-flex justify-center items-center">
-					<Button variant="info">Settings</Button>
-				</div>
-				<div className=" col-span-2 d-flex justify-center items-center">Events section</div>
-				<div className="d-flex justify-center items-center">
-					<Button variant="danger">Quit Game</Button>
-				</div>
-				{/* second row */}
-				<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid avatarPath={`/${otherPlayers[0]?.avatar.replace("/avatars/", "")}`} score={100} />}</div>
-				{/* third row */}
-				<div className="col-span-4 d-flex justify-center">
-					<div className="col-span-4 d-flex justify-around items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid avatarPath={`/${otherPlayers[1]?.avatar.replace("/avatars/", "")}`} score={400} />}</div>
-					{/* FIRST DROPPABLE AREA WHERE APLYER DRAGS CARDS HERE TO PLAY THEIR TURN */}
-					{/* SHOULD DYNAMICALLY LOAD ONLY WHEN ITS THE PLAYERS OWN TURN */}
-					<div className="w-1/3 d-flex justify-center items-center">
-						{/* TODO FIX THE CARDS NOT BEING CENTERED INSIDE OF EACH DROPPABLE AREA  */}
+	const [isNewTurn, setIsNewTurn] = useState(false); //to be updtaed when the player wins the accusation wether accuser or accused
 
-						{localPlayerHasTurn ? (
+	return (
+		<DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+			<div className="position-relative">
+				<div className="container1">
+					{/* first row */}
+					<div className="d-flex justify-center items-center">
+						<Button variant="info">Settings</Button>
+					</div>
+					<div className=" col-span-2 d-flex justify-center items-center">{eventMessage}</div>
+					<div className="d-flex justify-center items-center">
+						<Button variant="danger">Quit Game</Button>
+					</div>
+					{/* second row */}
+					<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[0]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[0]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[0]?.socketID === lastPlayedPlayer} />}</div>
+					{/* third row */}
+					<div className="col-span-4 d-flex justify-center">
+						<div className="col-span-4 d-flex justify-around items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[1]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[1]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[1]?.socketID === lastPlayedPlayer} />}</div>
+						<div className="w-1/3 d-flex justify-center items-center">
+							{localPlayerHasTurn ? (
+								<DroppableArea
+									id="cards-to-play"
+									items={cardsToPlay}
+									style={{
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+										position: "relative",
+										width: "100%",
+										maxWidth: "800px",
+										padding: "10px 0",
+										backgroundColor: "#f5f5f5",
+										margin: "10px auto",
+										minHeight: "100px",
+										cursor: "default",
+									}}
+									customDroppableAreaLabel={"Drag your cards here to play your move."}
+								/>
+							) : (
+								<img src="../../../../cardPile.svg" width={200} />
+							)}
+						</div>
+						<div className="col-span-4 d-flex justify-center items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid localPlayer={localPlayer} playerObject={otherPlayers[2]} hasCurrentTurn={otherPlayers[2]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[2]?.socketID === lastPlayedPlayer} />}</div>
+					</div>
+					<div className="col-span-4 d-flex justify-around">
+						<div className={`text-2xl font-bold ${timeLeft > 10 ? "text-green-600" : timeLeft > 5 ? "text-yellow-600" : "text-red-600"}`}>{timeLeft > 0 ? `Time left : ${timeLeft}s` : "Time's up!"}</div>
+					</div>
+					{/* third row */}
+					<div className="col-span-2">Chat box</div>
+					<div className="d-flex flex-col justify-center items-center">
+						{!gameStarted ? (
+							localPlayer?.isLeader ? (
+								<Button variant="success" onClick={startGame}>
+									Start Game
+								</Button>
+							) : (
+								<p>Waiting for the leader to start the game</p>
+							)
+						) : (
 							<DroppableArea
-								id="cards-to-play"
-								items={cardsToPlay}
+								id="your-cards"
+								items={Array.isArray(yourCards) ? yourCards : []} // Ensure items is always an array
 								style={{
 									display: "flex",
 									alignItems: "center",
@@ -253,78 +360,49 @@ const GameBoardGrid = () => {
 									width: "100%",
 									maxWidth: "800px",
 									padding: "10px 0",
-									backgroundColor: "#f5f5f5",
+									backgroundColor: "#e0e0e0",
 									margin: "10px auto",
 									minHeight: "100px",
 									cursor: "default",
 								}}
-								customDroppableAreaLabel={"Drag your cards here to play your move."}
+								customDroppableAreaLabel={"Drag your cards here to keep them in your hand"}
 							/>
-						) : (
-							<img src="../../../../cardPile.svg" width={200} />
 						)}
-					</div>
-					<div className="col-span-4 d-flex justify-center items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid avatarPath={`/${otherPlayers[2]?.avatar.replace("/avatars/", "")}`} score={200} />}</div>
-				</div>
-				<div className="col-span-4 d-flex justify-around">
-					<div className={`text-2xl font-bold ${timeLeft > 10 ? "text-green-600" : timeLeft > 5 ? "text-yellow-600" : "text-red-600"}`}>{timeLeft > 0 ? `Time left : ${timeLeft}s` : "Time's up!"}</div>
-				</div>
-				{/* third row */}
-				<div className="col-span-2">Chat box</div>
-				<div className="d-flex flex-col justify-center items-center">
-					{!gameStarted ? (
-						localPlayer?.isLeader ? (
-							<Button variant="success" onClick={startGame}>
-								Start Game
+						{console.log("isNewTurn", isNewTurn, " localPlayerHasTurn", localPlayerHasTurn)}
+						{isNewTurn && localPlayerHasTurn ? (
+							<div className="d-flex justify-center items-center gap-2 p-2 mb-2 bg-amber-200 text-blue-950">
+								<label htmlFor="newSelectedCardToPlay">Ech Habetet : </label>
+								<select id="newSelectedCardToPlay">
+									{["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"].map((card) => (
+										<option key={card} value={card}>
+											{card}
+										</option>
+									))}
+								</select>
+							</div>
+						) : null}
+						<div className="d-flex justify-center items-center gap-2">
+							<Button
+								variant="success"
+								disabled={!localPlayerHasTurn || cardsToPlay.length === 0}
+								onClick={handleConfirmTurn} // Remove the parameter
+							>
+								Confirm
 							</Button>
-						) : (
-							<p>Waiting for the leader to start the game</p>
-						)
-					) : (
-						<DroppableArea
-							id="your-cards"
-							items={Array.isArray(yourCards) ? yourCards : []} // Ensure items is always an array
-							style={{
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								position: "relative",
-								width: "100%",
-								maxWidth: "800px",
-								padding: "10px 0",
-								backgroundColor: "#e0e0e0",
-								margin: "10px auto",
-								minHeight: "100px",
-								cursor: "default",
-							}}
-							customDroppableAreaLabel={"Drag your cards here to keep them in your hand"}
-						/>
-					)}
-					{/* THIS SHOULD BE CONDITIONALLY RENDERED AFTER THE PLAYER ACCUSED ANOTHER AND WON */}
-					<div className="d-flex justify-center items-center gap-2 p-2 mb-2 bg-amber-200 text-blue-950">
-						<label htmlFor="newSelectedCardToPlay">Ech Habetet : </label>
-						<select id="newSelectedCardToPlay">
-							{["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"].map((card) => (
-								<option key={card} value={card}>
-									{card}
-								</option>
-							))}
-						</select>
+							<Button variant="danger" disabled={cardsToPlay.length === 0} onClick={handleCancelTurn}>
+								Cancel
+							</Button>
+						</div>
 					</div>
-					<div className="d-flex justify-center items-center gap-2">
-						<Button variant="success" disabled={!localPlayerHasTurn || cardsToPlay.length === 0} onClick={handleConfirmTurn}>
-							Confirm
-						</Button>
-						<Button variant="danger">Cancel</Button>
+					<div>
+						<ul className="d-flex flex-column gap-4 justify-center" style={{height: "100%"}}>
+							<li>Shield:1</li>
+							<li>Skip:2</li>
+							<li>True Vision:3</li>
+						</ul>
 					</div>
 				</div>
-				<div>
-					<ul className="d-flex flex-column gap-4 justify-center" style={{height: "100%"}}>
-						<li>Shield:1</li>
-						<li>Skip:2</li>
-						<li>True Vision:3</li>
-					</ul>
-				</div>
+				<LastCardDisplay className="bg-amber-950" lastCardInfo={lastCardPresented} />
 			</div>
 			<DragOverlay>{activeId ? <SortableItem id={activeId} title={activeId} /> : null}</DragOverlay>
 		</DndContext>
@@ -337,5 +415,6 @@ const GameBoardGrid = () => {
 //DONE ADD BUTTON TO START GAME BY LEADER
 //START GAME AND GET SHUFFLED CARDS TO EACH SOCKET PRIVATELY
 //ISSUE : DISABLE POSSIBLITY TO CREATE GAMEROOMS WITH CUSTOM ROOMCODES
+//TODO IMPLEMENT DIFFERENT SVGS FOR THE PILE BASED ON HOW MANY CARDS ARE IN THE PILE
 
 export default GameBoardGrid;

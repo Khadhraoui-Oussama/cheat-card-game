@@ -42,6 +42,8 @@ app.get("/", (req, res) => {
 
 let onlineUsers = {};
 let lastMovePlayedInRoom = {};
+let pileOfCardsInEachRoom = {};
+let disconnectedPlayers = {};
 //LETS TALK FOR A SECOND
 /*
  I NEED TO STORE ONLINEUSERS IN A DICTIONNARY TYPE DATA DTRUCT WHERE THE KEY IS THE ROOMCODE AND THE VALUE IS AN ARRAY OF THE PLAYER OBJECTS THAT ARE IN THE ROOM
@@ -64,7 +66,7 @@ const createDeck = () => {
 			}
 		}
 	}
-	deck.push("1J", "2J", "3J", "4J");
+	deck.push("1J", "2J"); // Add the jokers
 	return deck;
 };
 
@@ -154,11 +156,17 @@ io.on("connection", (socket) => {
 		// Create and shuffle the deck
 		const deck = shuffleDeck(createDeck());
 
+		// Initialize the pile for this room
+		pileOfCardsInEachRoom[roomCode] = [];
+
 		// Deal 13 cards to each player and update their player object
 		let localPlayer;
 		players.forEach((player, index) => {
 			const playerCards = deck.slice(index * 13, (index + 1) * 13);
 			player.cards = playerCards; // Add the cards to the player object
+			player.preOrderInfo = {isPreordered: false, playerWhoPreordered: null}; // Set the player's preordered status to false
+			player.issuedPreorderDetails = {hasIssuedPreorder: false, playerIssuedAgainstID: null}; // Set the player's issuedPreorder status to false
+			player.score = 0; // Set the player's score to 0
 			if (player.isLeader) {
 				player.hasTurn = true;
 			} else {
@@ -166,17 +174,20 @@ io.on("connection", (socket) => {
 			}
 
 			// Send cards privately to each player
-			io.to(player.socketID).emit("receiveCards", {playerCards, localPlayer});
+			io.to(player.socketID).emit("receiveCards", player);
 		});
+
+		//SEARCH FOR THE LEADER IE THE PERSON WHO INITIATED THE STARTGAME SIGNAL
+		//IN ORDER TO GIVE HIM TURN
 		players.forEach((player) => {
 			if (player.socketID === socketID) {
 				localPlayer = player;
 			}
-			io.to(player.socketID).emit("updateLocalPlayer", localPlayer);
+			//io.to(player.socketID).emit("updateLocalPlayer", localPlayer);
 		});
-
 		//GIVE TURN TO THE GAME ROOM LEADER
-		io.to(roomCode).emit("updateTurn", {currentPlayer: localPlayer.socketID});
+		io.to(roomCode).emit("updateTurn", {currentPlayer: localPlayer.socketID, newTurnStatus: true});
+
 		// Update the onlineUsers object with the modified players
 		onlineUsers[roomCode] = players;
 
@@ -194,51 +205,262 @@ io.on("connection", (socket) => {
 		console.log("winner : ", winnerPlayerObject, " winnerBool :", winnerBOOL);
 		return {winnerBOOL, winnerPlayerObject: winnerBOOL ? winnerPlayerObject : null};
 	};
-	socket.on("makeMove", ({roomCode, socketID, cardsPlayedArray, cardValueTold}) => {
-		//if player is first to start ie the leader or any player that accused and won or got accused and won ,then the player can play any nymber of cards
-		//and has to include the card value with no suit,
-		//we have to store the last move ie the cardValueTold and the cardsPlayedArray
-		//so that when a player gets accused we can check if the cards played match the cardValueTold
-		//if the player is not the leader then the player has to play the same cardValueTold as the last player
-		console.log("makeMove signal received from client with roomCode:", roomCode, " with cardsPlayedArray : ", cardsPlayedArray);
-		onlineUsers[roomCode]?.forEach((player) => {
-			//remove the cards played from the player's hand
-			//todo check for preorder action before removing the cards entirely
 
-			if (player.socketID === socketID) {
-				player.cards = player.cards.filter((card) => !cardsPlayedArray.includes(card));
+	const findNextTurn = (socketID, roomCode) => {
+		//could be interrupted by accuse action in that case : 2 cases arise :
+		//if accuser is right the turn goes to the accuser
+		//if accuser is wrong the turn goes to the accused
+		//need a way to store the accused and the accuser
+		//also need to find a way to get the actiontype so it can be displayed in events section
+		//circular motion of turns thanks to moudlo operator
+		const currentPlayerIndex = onlineUsers[roomCode]?.findIndex((player) => player.socketID === socketID);
+		const nextPlayerIndex = (currentPlayerIndex + 1) % onlineUsers[roomCode]?.length;
+		return onlineUsers[roomCode][nextPlayerIndex];
+	};
+
+	socket.on("makeMove", ({roomCode, socketID, cardsPlayedArray, cardValueTold, isNewTurn, isFinalCard}) => {
+		try {
+			// Find the current player
+			const currentPlayer = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
+
+			if (isFinalCard) {
+				// Check if the final card matches the claimed value
+				const finalCard = cardsPlayedArray[0];
+				const actualCardValue = finalCard.slice(0, -1); // Remove suit
+				const isJoker = finalCard === "1J" || finalCard === "2J";
+
+				if (actualCardValue !== cardValueTold && !isJoker) {
+					// Player lied about their final card - they must take all cards
+					currentPlayer.cards = [...currentPlayer.cards, ...pileOfCardsInEachRoom[roomCode]];
+					pileOfCardsInEachRoom[roomCode] = [];
+
+					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} lied about their final card and must take all cards from the pile, then play again!`);
+
+					// Update the player's cards
+					io.to(currentPlayer.socketID).emit("updateLocalPlayer", currentPlayer);
+					//if lied about their final card , they must take all cards , and take turn again
+					const lastPlayedPlayer = socketID;
+					io.to(roomCode).emit("updateTurn", {
+						currentPlayer: socketID,
+						lastPlayedPlayer: lastPlayedPlayer,
+						newTurnStatus: true,
+					});
+				} else {
+					// Player won!
+					io.to(roomCode).emit("gameOver", currentPlayer);
+					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} has won the game by playing their final card truthfully!`);
+				}
+				return;
 			}
-		});
-		lastMovePlayedInRoom[roomCode] = {cardsPlayedArray, cardValueTold};
-		const findNextTurn = () => {
-			//could be interrupted by accuse action in that case : 2 cases arise :
-			//if accuser is right the turn goes to the accuser
-			//if accuser is wrong the turn goes to the accused
-			//need a way to store the accused and the accuser
-			//also need to find a way to get the actiontype so it can be displayed in events section
-			//circular motion of turns thanks to moudlo operator
-			const currentPlayerIndex = onlineUsers[roomCode]?.findIndex((player) => player.socketID === socketID);
-			const nextPlayerIndex = (currentPlayerIndex + 1) % onlineUsers[roomCode]?.length;
-			return onlineUsers[roomCode][nextPlayerIndex];
-		};
-		// Check for winners
-		const {winnerBOOL, winnerPlayerObject} = checkWinner(roomCode);
-		// If there is a winner, send the winner to the client
-		if (winnerBOOL) {
-			io.to(roomCode).emit("gameOver", winnerPlayerObject);
-		} else {
-			io.to(roomCode).emit("updateTurn", {currentPlayer: findNextTurn().socketID});
+
+			// Normal turn logic
+			currentPlayer.cards = currentPlayer.cards.filter((card) => !cardsPlayedArray.includes(card));
+
+			// Check if player is trying to play all cards except one
+			if (currentPlayer.cards.length === 0) {
+				io.to(currentPlayer.socketID).emit("updateGameEventMessage", `${currentPlayer.name} must keep at least one card in hand!`);
+				return;
+			}
+
+			// ... rest of your existing makeMove logic ...
+			if (!isNewTurn) {
+				cardValueTold = lastMovePlayedInRoom[roomCode].cardValueTold;
+			}
+			console.log("makeMove signal received from client with roomCode:", roomCode, " with cardsPlayedArray : ", cardsPlayedArray, " cardValueTold : ", cardValueTold);
+			onlineUsers[roomCode]?.forEach((player) => {
+				//remove the cards played from the player's hand
+				//todo check for preorder action before removing the cards entirely NO PLAY TURN THEN PREORDER ACTION WILL GET EXECUTED
+
+				//remove the cards in cardsPlayedArray from the player cards value
+				if (player.socketID === socketID) {
+					player.cards = player.cards.filter((card) => !cardsPlayedArray.includes(card));
+					console.log("player cards after removing the played cards : ", player.cards);
+				}
+			});
+			//update last move played in room
+			lastMovePlayedInRoom[roomCode] = {cardsPlayedArray, cardValueTold};
+
+			// Initialize the pile if it doesn't exist
+			if (!pileOfCardsInEachRoom[roomCode]) {
+				pileOfCardsInEachRoom[roomCode] = [];
+			}
+
+			pileOfCardsInEachRoom[roomCode] = [...pileOfCardsInEachRoom[roomCode], ...cardsPlayedArray];
+			// Check for winners
+			const {winnerBOOL, winnerPlayerObject} = checkWinner(roomCode);
+			// If there is a winner, send the winner to the client
+			if (winnerBOOL) {
+				io.to(roomCode).emit("gameOver", winnerPlayerObject);
+				io.to(roomCode).emit("updateGameEventMessage", `GAME OVER , ${winnerPlayerObject.name} WON THE GAME`);
+			} else {
+				//NEED TO CHECK IF ANY PLAYER HAS PREORDERED THE PLAYER WHO IS PLAYING THEIR TURN
+				//IF YES THEN THE PLAYER WHO PREORDERED CAN ACCUSE THE PLAYER WHO IS PLAYING THEIR TURN
+				//you are about to makeMove , after you make your move, if you are preodered,
+				//the player who preordered you will see the cards you last played : cardsPlayedArray , if they are wrong , you get turn and can choose newTurnCard & they take cardPlayedArray, if they are right , they get turn and can choose newTurnCard & you take cardPlayedArray
+				onlineUsers[roomCode]?.forEach((player) => {
+					if (player.socketID === socketID) {
+						if (player.preOrderInfo.isPreordered) {
+							const accuserFromPreorderSocketID = player.preOrderInfo.playerWhoPreordered;
+							io.to(accuserFromPreorderSocketID).emit("accusePlayer", {roomCode: roomCode, socketID: accuserFromPreorderSocketID, accusedPlayerID: player.socketID});
+						}
+					}
+				});
+
+				// Before updating turn, store the last player who made a move
+				const lastPlayedPlayer = socketID;
+				const nextPlayer = findNextTurn(socketID, roomCode);
+
+				io.to(roomCode).emit("updateTurn", {
+					currentPlayer: nextPlayer.socketID,
+					lastPlayedPlayer: lastPlayedPlayer,
+					newTurnStatus: false,
+				});
+
+				io.to(roomCode).emit("updateGameEventMessage", `${onlineUsers[roomCode]?.find((player) => player.socketID === socketID).name} has played their turn : ${cardsPlayedArray.length} ${cardsPlayedArray.length == 1 ? "card" : "cards"} of value : ${cardValueTold}`);
+			}
+		} catch (error) {
+			console.log("Error in makeMove:", error, " \n");
 		}
 	});
 	socket.on("accuse", ({roomCode, socketID, accusedPlayerID}) => {
-		//check if last move played is the same as the cardValueTold
+		try {
+			if (!roomCode || !socketID || !accusedPlayerID) {
+				console.error("Missing required parameters for accusation:", {roomCode, socketID, accusedPlayerID});
+				return;
+			}
+
+			console.log("Received accuse signal:", {roomCode, accuser: socketID, accused: accusedPlayerID});
+
+			const accuser = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
+			const accused = onlineUsers[roomCode]?.find((player) => player.socketID === accusedPlayerID);
+
+			if (!accuser || !accused) {
+				console.error("Could not find accuser or accused player");
+				return;
+			}
+
+			const {cardsPlayedArray, cardValueTold} = lastMovePlayedInRoom[roomCode] || {};
+			if (!cardsPlayedArray) {
+				console.error("No cards were played in this TURN");
+				io.to(socketID).emit("updateGameEventMessage", "No cards were played in this TURN");
+				return;
+			}
+
+			const accuserIsRight = cardsPlayedArray.some((card) => {
+				const cardValue = card.slice(0, -1); // Extract the value part of the card
+				return cardValue !== cardValueTold && card !== "1J" && card !== "2J";
+			});
+
+			if (accuserIsRight) {
+				// Accused takes all cards
+				accused.cards = [...accused.cards, ...pileOfCardsInEachRoom[roomCode]];
+				pileOfCardsInEachRoom[roomCode] = [];
+
+				io.to(roomCode).emit("updateTurn", {currentPlayer: socketID});
+				io.to(roomCode).emit("updateGameEventMessage", `Accuser ${accuser.name} was right, ${accused.name} takes all cards , and ${accuser.name} has TURN`);
+			} else {
+				// Accuser takes all cards
+				accuser.cards = [...accuser.cards, ...pileOfCardsInEachRoom[roomCode]];
+				pileOfCardsInEachRoom[roomCode] = [];
+				// Give turn to accused
+				io.to(accuser.socketID).emit("updateLocalPlayer", accuser);
+				io.to(roomCode).emit("updateTurn", {currentPlayer: accusedPlayerID});
+				io.to(roomCode).emit("updateGameEventMessage", `Accuser ${accuser.name} was wrong, ${accuser.name} takes all cards , and ${accused.name} has TURN`);
+			}
+
+			io.to(roomCode).emit("updateNewTurnStatus", true);
+			//empty all preorders in the room , all preOrderInfo and issuedPreorderDetails
+			//might need to refacotr the meptying of other preorders on top
+			onlineUsers[roomCode].forEach((player) => {
+				player.preOrderInfo = {isPreordered: false, playerWhoPreordered: null};
+				player.issuedPreorderDetails = {hasIssuedPreorder: false, playerIssuedAgainstID: null};
+				io.to(player.socketID).emit("updateLocalPlayer", player);
+			});
+		} catch (error) {
+			console.log("error in accuse : ", error, " \n");
+		}
 	});
-	socket.on("preorder", ({roomCode, socketID, accusedPlayerID, cardValueTold}) => {
-		//prevent all other players from acccusing this player
-		//only the player that issued the preorder signal can accuse after the accusedPlayer has played their turn
+	socket.on("preorder", async ({roomCode, socketID, accusedPlayerID}) => {
+		// roomCode,
+		// 		socketID: localPlayerID,
+		// 		accusedPlayerID: actualPlayerID,
+		try {
+			if (!roomCode || !socketID || !accusedPlayerID) {
+				console.error("Missing required parameters for accusation:", {roomCode, socketID, accusedPlayerID});
+				return;
+			}
+			const playerToBePreordered = onlineUsers[roomCode]?.find((player) => player.socketID === accusedPlayerID);
+			const playerWhoPreordered = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
+			if (playerToBePreordered.preOrderInfo.isPreordered) {
+				const aux = onlineUsers[roomCode]?.find((p) => p.socketID === playerToBePreordered.preOrderInfo.playerWhoPreordered);
+				console.log(`player ${playerToBePreordered.socketID} is already preordered by ${aux.name} in room : ${roomCode}`);
+				io.to(playerWhoPreordered.socketID).emit("updateGameEventMessage", `Player ${playerToBePreordered.name} is already preordered by ${aux.name} `);
+				return;
+			} else {
+				if (playerWhoPreordered.issuedPreorderDetails.hasIssuedPreorder) {
+					const playerIssuedAgainst = onlineUsers[roomCode]?.find((p) => p.socketID === playerWhoPreordered.issuedPreorderDetails.playerIssuedAgainstID);
+					console.log(`player ${playerWhoPreordered.socketID}  has already preordered ${playerIssuedAgainst.socketID} in room : ${roomCode}`);
+					io.to(playerWhoPreordered.socketID).emit("updateGameEventMessage", `Player  ${playerIssuedAgainst.name} has already issued a preorder on : ${playerToBePreordered.name}`);
+					return;
+				}
+				playerToBePreordered.preOrderInfo = {isPreordered: true, playerWhoPreordered: playerWhoPreordered.socketID};
+				playerWhoPreordered.issuedPreorderDetails = {hasIssuedPreorder: true, playerIssuedAgainstID: accusedPlayerID};
+				io.to(playerWhoPreordered.socketID).emit("updateLocalPlayer", playerWhoPreordered);
+				io.to(playerToBePreordered.socketID).emit("updateLocalPlayer", playerToBePreordered);
+				io.to(roomCode).emit("updateGameEventMessage", `${playerToBePreordered.name} has been preordered by ${playerWhoPreordered.name}`);
+				console.log(`${playerToBePreordered.name} has been preordered by ${playerWhoPreordered.name} in room ${roomCode}`);
+			}
+		} catch (error) {
+			console.log("error in preorder : ", error, " \n");
+		}
 	});
 	/* END GAME LOGIC */
 
+	// Add reconnection handler
+	socket.on("attemptReconnect", ({roomCode, previousSocketId}) => {
+		try {
+			console.log("Attempting reconnection for:", previousSocketId, "to room:", roomCode);
+
+			// Check if the room exists
+			if (!onlineUsers[roomCode]) {
+				socket.emit("reconnectionFailed", "Room no longer exists");
+				return;
+			}
+
+			// Find the disconnected player data
+			const disconnectedPlayer = disconnectedPlayers[previousSocketId];
+			if (!disconnectedPlayer) {
+				socket.emit("reconnectionFailed", "Session expired");
+				return;
+			}
+
+			// Update the player's socket ID
+			const playerIndex = onlineUsers[roomCode].findIndex((player) => player.socketID === previousSocketId);
+
+			if (playerIndex !== -1) {
+				// Update the socket ID
+				onlineUsers[roomCode][playerIndex].socketID = socket.id;
+				const updatedPlayer = onlineUsers[roomCode][playerIndex];
+
+				// Join the room
+				socket.join(roomCode);
+
+				// Send the reconnected player their data
+				socket.emit("reconnectionSuccessful", updatedPlayer);
+
+				// Update all clients in the room
+				io.to(roomCode).emit("updateUserList", onlineUsers[roomCode]);
+
+				// Clean up
+				delete disconnectedPlayers[previousSocketId];
+			}
+		} catch (error) {
+			console.error("Reconnection error:", error);
+			socket.emit("reconnectionFailed", "Internal server error");
+		}
+	});
+
+	// Modify the disconnect handler
 	socket.on("disconnect", (reason) => {
 		console.log(`Socket with ID ${socket.id} has disconnected, reason: ${reason}`);
 		// Track rooms that need an update
@@ -266,8 +488,21 @@ io.on("connection", (socket) => {
 			if (onlineUsers[roomCode]?.length === 0) {
 				delete onlineUsers[roomCode];
 				delete lastMovePlayedInRoom[roomCode];
+				delete pileOfCardsInEachRoom[roomCode];
 			}
-			//** */
+
+			if (disconnectedPlayer) {
+				// Store the disconnected player's data temporarily
+				disconnectedPlayers[socket.id] = {
+					...disconnectedPlayer,
+					timestamp: Date.now(),
+				};
+
+				// Clean up old disconnected players after 30 minutes
+				setTimeout(() => {
+					delete disconnectedPlayers[socket.id];
+				}, 30 * 60 * 1000);
+			}
 		});
 
 		// Emit the updated user list to the rooms that were affected
@@ -316,3 +551,13 @@ mongoose
 
 //TODO REFACTOR THE ONLINEUSERS ARRAY INTO A MAP FOR BETTER PERFORMANCE IF THE GAME GROWS PORT
 //MIGHT NEED TO REWRITE THE WHOLE INDEX.JS SERVER CODE
+
+/*
+
+TOMORROW
+MAKE SURE THAT A PLAYER CANNOT PLAY ALL HIS HAND IN ONE GO AND WIN AUTO
+A PLAYER CAN PLAY ALL HIS CARDS EXCEPT HE HAS TO KEEP ONE IN HAND TO NOT WIN AUTO
+AND ONLY WHEN HE HAS ONLY ONE CARD LEFT THEN HE CAN PLAY IT FACE UP AND WIN ,
+IF HE PLAYS THE LAST CARD FACE UP AND IT IS NOT THE SAME AS THE CARD VALUE TOLD THEN HE HAS TO TAKE THE WHOLE PILE OF CARDS TO HIS HAND ELSE HE WINS
+DONE EXCEPT FOR THE LAST CARD BEING FACE UP
+*/
