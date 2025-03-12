@@ -12,10 +12,12 @@ import {useSensor, useSensors, MouseSensor, TouchSensor, KeyboardSensor} from "@
 import {arrayMove, SortableContext, sortableKeyboardCoordinates} from "@dnd-kit/sortable";
 import SortableItem from "../SortableItem";
 import DroppableArea from "../DroppableArea";
-import LastCardDisplay from "../LastCardDisplay";
-import PowerupAnimation from "../PowerupAnimation/PowerupAnimation";
 
 /** END **/
+import LastCardDisplay from "../LastCardDisplay";
+import PowerupAnimation from "../PowerupAnimation/PowerupAnimation";
+import PlayerSelectionModal from "../PlayerSelectionModal/PlayerSelectionModal";
+import CardsRevealModal from "../CardsRevealModal/CardsRevealModal";
 
 const GameBoardGrid = () => {
 	/** PREVIOUS GAMEBOARD LOGIC HERE  **/
@@ -112,6 +114,8 @@ const GameBoardGrid = () => {
 	const [showPowerupAnimation, setShowPowerupAnimation] = useState(false);
 	const [powerupAnimationId, setPowerupAnimationId] = useState(null);
 	const [lastPowerupReceiver, setLastPowerupReceiver] = useState(null);
+	const [showCardsReveal, setShowCardsReveal] = useState(false);
+	const [revealedCards, setRevealedCards] = useState({cards: [], playerName: ""});
 	useEffect(() => {
 		if (!socket.connected) {
 			socket.connect();
@@ -227,8 +231,13 @@ const GameBoardGrid = () => {
 	//WE HAVE LOCAL PLAYER WHICH IS US , AND THE OTHER PLAYERS IN THE ROOM IN otherPlayers ARRAY
 
 	const startGame = () => {
-		//TODO IMPLEMENT THE GAME START LOGIC HERE
 		socket.emit("startGame", {roomCode: roomCode, socketID: socket.id});
+		// If the local player is the leader, set their turn immediately
+		if (localPlayer?.isLeader) {
+			setLocalPlayerHasTurn(true);
+			setIsNewTurn(true);
+			setCurrentTurnPlayer(socket.id);
+		}
 	};
 
 	//THIS WORKS DONT CHANGE IT
@@ -329,6 +338,114 @@ const GameBoardGrid = () => {
 		};
 	}, [socket, localPlayerHasTurn, cardsToPlay]);
 
+	// Add these handler functions before the return statement
+	const handleShieldPowerup = () => {
+		if (enablePowerupsButtonState[0] > 0) {
+			socket.emit("usePowerup", {
+				type: "shield",
+				powerupId: 0,
+				roomCode,
+				userId: socket.id,
+			});
+		}
+	};
+
+	const handleTrueVisionPowerup = () => {
+		if (enablePowerupsButtonState[1] > 0) {
+			setCurrentPowerupAction("trueVision");
+			setShowPlayerSelection(true);
+		}
+	};
+
+	const handleCleansePowerup = () => {
+		if (enablePowerupsButtonState[2] > 0) {
+			socket.emit("usePowerup", {
+				type: "cleanse",
+				powerupId: 2,
+				roomCode,
+				userId: socket.id,
+			});
+		}
+	};
+
+	const handleSkipPlayerPowerup = () => {
+		if (enablePowerupsButtonState[3] > 0) {
+			setCurrentPowerupAction("skipPlayer");
+			setShowPlayerSelection(true);
+		}
+	};
+
+	// Add to your existing socket event listeners
+	useEffect(() => {
+		socket.on("revealCards", ({cards, playerName}) => {
+			setEventMessage(`${playerName}'s cards were: ${cards.join(", ")}`);
+			setRevealedCards({cards, playerName});
+			setShowCardsReveal(true);
+		});
+
+		socket.on("powerupUsed", ({type, powerupId}) => {
+			setEnablePowerupsButtonState((prev) => ({
+				...prev,
+				[powerupId]: prev[powerupId] - 1,
+			}));
+		});
+
+		return () => {
+			socket.off("revealCards");
+			socket.off("powerupUsed");
+		};
+	}, [socket]);
+
+	// Add these states
+	const [showPlayerSelection, setShowPlayerSelection] = useState(false);
+	const [currentPowerupAction, setCurrentPowerupAction] = useState(null);
+
+	// Add the handler for player selection
+	const handlePlayerSelect = (selectedPlayer) => {
+		if (currentPowerupAction === "trueVision") {
+			socket.emit("usePowerup", {
+				type: "trueVision",
+				powerupId: 1,
+				roomCode,
+				userId: socket.id,
+				targetId: selectedPlayer.socketID,
+			});
+		} else if (currentPowerupAction === "skipPlayer") {
+			socket.emit("usePowerup", {
+				type: "skipPlayer",
+				powerupId: 3,
+				roomCode,
+				userId: socket.id,
+				targetId: selectedPlayer.socketID,
+			});
+		}
+		setShowPlayerSelection(false);
+		setCurrentPowerupAction(null);
+	};
+
+	// Add new state
+	const [canAccuse, setCanAccuse] = useState(true);
+	const [currentAccusation, setCurrentAccusation] = useState(null);
+
+	// Add to your existing useEffect or create new one
+	useEffect(() => {
+		socket.on("accusationStarted", (data) => {
+			setCanAccuse(false);
+			setCurrentAccusation(data);
+			setEventMessage(`${data.accuserName} is accusing ${data.accusedName}!`);
+		});
+
+		socket.on("accusationResolved", () => {
+			setCanAccuse(true);
+			setCurrentAccusation(null);
+		});
+
+		return () => {
+			socket.off("accusationStarted");
+			socket.off("accusationResolved");
+		};
+	}, [socket]);
+
 	return (
 		<DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
 			<div className="position-relative">
@@ -342,7 +459,7 @@ const GameBoardGrid = () => {
 						<Button variant="danger">Quit Game</Button>
 					</div>
 					{/* second row */}
-					<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[0]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[0]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[0]?.socketID === lastPlayedPlayer} />}</div>
+					<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[0]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[0]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[0]?.socketID === lastPlayedPlayer} canAccuse={canAccuse} />}</div>
 					{/* third row */}
 					<div className="col-span-4 d-flex justify-center">
 						<div className="col-span-4 d-flex justify-around items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[1]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[1]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[1]?.socketID === lastPlayedPlayer} />}</div>
@@ -435,17 +552,24 @@ const GameBoardGrid = () => {
 					<div>
 						<ul className="d-flex flex-column gap-4 justify-center" style={{height: "100%"}}>
 							<li>
-								<Button disabled={enablePowerupsButtonState[0] == 0}>Shield : {enablePowerupsButtonState[0]}</Button>
+								<Button disabled={enablePowerupsButtonState[0] === 0} onClick={handleShieldPowerup} title="Protect yourself from the next accusation">
+									Shield : {enablePowerupsButtonState[0]}
+								</Button>
 							</li>
 							<li>
-								<Button disabled={enablePowerupsButtonState[1] == 0}>True Vision : {enablePowerupsButtonState[1]}</Button>
+								<Button disabled={enablePowerupsButtonState[1] === 0} onClick={handleTrueVisionPowerup} title="See the last played cards' true values">
+									True Vision : {enablePowerupsButtonState[1]}
+								</Button>
 							</li>
 							<li>
-								<Button disabled={enablePowerupsButtonState[2] == 0}>Cleanse : {enablePowerupsButtonState[2]}</Button>
+								<Button disabled={enablePowerupsButtonState[2] === 0} onClick={handleCleansePowerup} title="Remove all preorders on you">
+									Cleanse : {enablePowerupsButtonState[2]}
+								</Button>
 							</li>
-
 							<li>
-								<Button disabled={enablePowerupsButtonState[3] == 0}> Skip a player : {enablePowerupsButtonState[3]}</Button>
+								<Button disabled={enablePowerupsButtonState[3] === 0} onClick={handleSkipPlayerPowerup} title="Skip the current player's turn">
+									Skip a player : {enablePowerupsButtonState[3]}
+								</Button>
 							</li>
 						</ul>
 					</div>
@@ -461,6 +585,8 @@ const GameBoardGrid = () => {
 					setEventMessage(`Powerup granted! to ${lastPowerupReceiver}`);
 				}}
 			/>
+			<PlayerSelectionModal show={showPlayerSelection} onHide={() => setShowPlayerSelection(false)} players={otherPlayers} onSelect={handlePlayerSelect} actionType={currentPowerupAction} />
+			<CardsRevealModal show={showCardsReveal} onHide={() => setShowCardsReveal(false)} cards={revealedCards.cards} playerName={revealedCards.playerName} />
 		</DndContext>
 	);
 };

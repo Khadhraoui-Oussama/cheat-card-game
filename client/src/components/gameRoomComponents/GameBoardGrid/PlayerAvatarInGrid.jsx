@@ -6,44 +6,82 @@ import {PlayerContext} from "../../../contexts/PlayerContext";
 const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastPlayed}) => {
 	const {socket, roomCode} = useContext(SocketContext);
 	const [accuseButtonMsg, setAccuseButtonMsg] = useState("Accuse");
+	const [isBeingAccused, setIsBeingAccused] = useState(false);
+	const [hasBeenAccused, setHasBeenAccused] = useState(false);
+	const [globallyAccused, setGloballyAccused] = useState(false);
+
+	// Socket connection effect
 	useEffect(() => {
 		if (!socket.connected) {
 			socket.connect();
 		}
-	});
-	/*
-	HANDLE THE ACCUSE AND PREORDER LOGIC HERE
-	*/
+	}, [socket]);
+
+	// Accusation state management effect
+	useEffect(() => {
+		const handleAccusationStart = ({accusedId, accused}) => {
+			if (playerObject?.socketID === accusedId) {
+				setIsBeingAccused(true);
+				setHasBeenAccused(true);
+				setGloballyAccused(true);
+			}
+			// Set global accusation state for all instances
+			if (accused) {
+				setGloballyAccused(true);
+				setAccuseButtonMsg("Already Accused");
+			}
+		};
+
+		const handleAccusationResolve = () => {
+			setIsBeingAccused(false);
+		};
+
+		const handleTurnUpdate = () => {
+			setIsBeingAccused(false);
+			setHasBeenAccused(false);
+			setGloballyAccused(false);
+			setAccuseButtonMsg("Accuse");
+		};
+
+		socket.on("accusationStarted", handleAccusationStart);
+		socket.on("accusationResolved", handleAccusationResolve);
+		socket.on("updateTurn", handleTurnUpdate);
+		socket.on("playerAccused", ({accusedId}) => {
+			if (playerObject?.socketID === accusedId) {
+				setGloballyAccused(true);
+				setAccuseButtonMsg("Already Accused");
+			}
+		});
+
+		return () => {
+			socket.off("accusationStarted", handleAccusationStart);
+			socket.off("accusationResolved", handleAccusationResolve);
+			socket.off("updateTurn", handleTurnUpdate);
+			socket.off("playerAccused");
+		};
+	}, [socket, playerObject?.socketID]); // Only depend on socket and playerObject.socketID
 
 	const handleAccuseAndPreorder = (localPlayerID, actualPlayerID, actionType) => () => {
-		if (!actualPlayerID) {
-			console.error("No player ID provided for accusation");
-			return;
-		}
-
-		// Prevent self-accusation
-		if (localPlayerID === actualPlayerID) {
-			console.error("Cannot accuse yourself");
+		if (!actualPlayerID || localPlayerID === actualPlayerID) {
 			return;
 		}
 
 		if (actionType === "accuse") {
-			if (playerObject.isPreordered) {
-				console.log("cannot accuse the player as he is already preordered");
-				setAccuseButtonMsg("Preordered");
+			if (playerObject.isPreordered || hasBeenAccused || globallyAccused) {
+				setAccuseButtonMsg(playerObject.isPreordered ? "Preordered" : "Already Accused");
 				return;
 			}
 
 			socket.emit("accuse", {
 				roomCode,
-				socketID: localPlayerID, // this is the accuser's ID
-				accusedPlayerID: actualPlayerID, // this is the accused player's ID
+				socketID: localPlayerID,
+				accusedPlayerID: actualPlayerID,
 			});
 
-			console.log("Accusing player:", {
-				room: roomCode,
-				accuser: localPlayerID,
-				accused: actualPlayerID,
+			// Emit global accusation state
+			socket.emit("globalAccusation", {
+				roomCode,
+				accusedPlayerID: actualPlayerID,
 			});
 		} else if (actionType === "preorder") {
 			socket.emit("preorder", {
@@ -54,36 +92,31 @@ const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastP
 		}
 	};
 
-	// Add null check for playerObject
 	if (!playerObject) return null;
 
-	//MAKE THE ACCUSE BUTTON DYNAMICALLY LOAD ONLY AFTER THE PLAYER HAS PLAYED THEIR TURN AND THEN HIDE IT AGAIN AFTER THE NEXT PLAYER HAS FINISHED THEIR TURN ,MEANING THE ACCUSE WINDOW WILL ONLY BE AVAILABLE AFTER THE PLAYER HAS PLAYED THEIR TURN ,AND BEFORE THE NEXT PLAYER HAS PLAYED THEIR TURN
-	//PROPABLE SOLUTION: USE A STATE TO KEEP TRACK OF THE PLAYER WHOSE TURN IT IS (ALREADY IN GAMEBOARDGRID), AND ONLY UPDATE THAT STATE ON A SIGNAL FROM THE SERVER AFTER THE NEXT PLAYER HAS PLAYED THEIR TURN
-	//THE FIRST PLAYER IE LEADER WILL HAVE ACCUSE BUTTON DISABLED, AFTER HE PLAYS HIS TURN THE ACCUSE BUTTON WILL BE ENABLED FOR THE NEXT PLAYER AND DISABLED FOR THE LEADER, AND SO ON
 	return (
-		<>
-			<div className={`d-flex flex-column justify-content-center items-center p-2 rounded ${hasCurrentTurn ? "bg-green-200" : ""}`}>
-				<div className="d-flex gap-1 justify-content-center items-center">
-					<img src={`/avatars/${playerObject.avatar?.replace("/avatars/", "")}`} width={50} />
-					<h6>{playerObject.name}</h6>
-					<h6>{playerObject.score}</h6>
-				</div>
-				<div className="gap-1">
-					{/* Only show accuse button when this player was the last to play */}
-					{hasLastPlayed && !hasCurrentTurn && (
-						<Button variant="danger" size="sm" disabled={playerObject.isPreordered || localPlayer.socketID === playerObject.socketID} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "accuse")}>
-							{accuseButtonMsg}
-						</Button>
-					)}
-					{/* Show preorder button on other players when it's current player's turn */}
-					{localPlayer.hasTurn && (
-						<Button variant="warning" size="sm" disabled={playerObject?.preOrderInfo?.isPreordered} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
-							Preorder
-						</Button>
-					)}
-				</div>
+		<div
+			className={`d-flex flex-column justify-content-center items-center p-2 rounded 
+            ${hasCurrentTurn ? "bg-green-200" : ""}
+            ${isBeingAccused ? "bg-red-100" : ""}`}>
+			<div className="d-flex gap-1 justify-content-center items-center">
+				<img src={`/avatars/${playerObject.avatar?.replace("/avatars/", "")}`} width={50} />
+				<h6>{playerObject.name}</h6>
+				<h6>{playerObject.score}</h6>
 			</div>
-		</>
+			<div className="gap-1">
+				{hasLastPlayed && !hasCurrentTurn && (
+					<Button variant="danger" size="sm" disabled={playerObject.isPreordered || localPlayer.socketID === playerObject.socketID || isBeingAccused || hasBeenAccused || globallyAccused} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "accuse")}>
+						{isBeingAccused ? "Being Accused" : globallyAccused ? "Already Accused" : accuseButtonMsg}
+					</Button>
+				)}
+				{localPlayer.hasTurn && (
+					<Button variant="warning" size="sm" disabled={playerObject?.preOrderInfo?.isPreordered} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
+						Preorder
+					</Button>
+				)}
+			</div>
+		</div>
 	);
 };
 

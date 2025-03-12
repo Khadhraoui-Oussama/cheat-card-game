@@ -160,7 +160,7 @@ const handleTurnChange = (roomCode, nextPlayerSocket, currentPlayer) => {
 	io.to(roomCode).emit("updateTurn", {
 		currentPlayer: nextPlayerSocket,
 		lastPlayedPlayer: currentPlayer?.socketID,
-		newTurnStatus: true,
+		newTurnStatus: nextPlayerSocket === currentPlayer?.socketID ? false : true, // Only set true if it's actually a new player's turn
 	});
 
 	// Start new timer for next player
@@ -294,7 +294,7 @@ io.on("connection", (socket) => {
 				// Check if the final card matches the claimed value
 				const finalCard = cardsPlayedArray[0];
 				const actualCardValue = finalCard.slice(0, -1); // Remove suit
-				const isJoker = finalCard === "1J" || finalCard === "2J";
+				const isJoker = finalCard === "1J" || "2J";
 
 				if (actualCardValue !== cardValueTold && !isJoker) {
 					// Player lied about their final card - they must take all cards
@@ -374,21 +374,21 @@ io.on("connection", (socket) => {
 
 				io.to(roomCode).emit("updateGameEventMessage", `${onlineUsers[roomCode]?.find((player) => player.socketID === socketID).name} has played their turn : ${cardsPlayedArray.length} ${cardsPlayedArray.length == 1 ? "card" : "cards"} of value : ${cardValueTold}`);
 			}
+
+			// After a successful move, the next turn should be a new turn
+			const nextPlayer = findNextTurn(socketID, roomCode);
+			handleTurnChange(roomCode, nextPlayer.socketID, currentPlayer);
+
+			// Reset new turn status after move is completed
+			io.to(roomCode).emit("updateNewTurnStatus", false);
 		} catch (error) {
-			console.log("Error in makeMove:", error, " \n");
+			console.log("Error in makeMove:", error);
 		}
 	});
 
 	// Modify accuse handler
 	socket.on("accuse", ({roomCode, socketID, accusedPlayerID}) => {
 		try {
-			if (!roomCode || !socketID || !accusedPlayerID) {
-				console.error("Missing required parameters for accusation:", {roomCode, socketID, accusedPlayerID});
-				return;
-			}
-
-			console.log("Received accuse signal:", {roomCode, accuser: socketID, accused: accusedPlayerID});
-
 			const accuser = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
 			const accused = onlineUsers[roomCode]?.find((player) => player.socketID === accusedPlayerID);
 
@@ -397,13 +397,18 @@ io.on("connection", (socket) => {
 				return;
 			}
 
-			const {cardsPlayedArray, cardValueTold} = lastMovePlayedInRoom[roomCode] || {};
-			if (!cardsPlayedArray) {
-				console.error("No cards were played in this TURN");
-				io.to(socketID).emit("updateGameEventMessage", "No cards were played in this TURN");
-				return;
-			}
+			// Emit accusation started event to all players in room
+			io.to(roomCode).emit("accusationStarted", {
+				accuserId: socketID,
+				accusedId: accusedPlayerID,
+				accuserName: accuser.name,
+				accusedName: accused.name,
+			});
 
+			// Get the last move played
+			const {cardsPlayedArray, cardValueTold} = lastMovePlayedInRoom[roomCode] || {};
+
+			// Process the accusation
 			const accuserIsRight = cardsPlayedArray.some((card) => {
 				const cardValue = card.slice(0, -1); // Extract the value part of the card
 				return cardValue !== cardValueTold && card !== "1J" && card !== "2J";
@@ -443,10 +448,16 @@ io.on("connection", (socket) => {
 				player.issuedPreorderDetails = {hasIssuedPreorder: false, playerIssuedAgainstID: null};
 				io.to(player.socketID).emit("updateLocalPlayer", player);
 			});
+
+			// After accusation is resolved (success or failure), emit resolution
+			io.to(roomCode).emit("accusationResolved");
 		} catch (error) {
-			console.log("error in accuse : ", error, " \n");
+			console.log("error in accuse:", error);
+			// Make sure to resolve the accusation state even on error
+			io.to(roomCode).emit("accusationResolved");
 		}
 	});
+
 	socket.on("preorder", async ({roomCode, socketID, accusedPlayerID}) => {
 		// roomCode,
 		// 		socketID: localPlayerID,
@@ -585,6 +596,67 @@ io.on("connection", (socket) => {
 				clearInterval(roomTimers.get(roomCode).intervalId);
 				roomTimers.delete(roomCode);
 			}
+		});
+	});
+
+	socket.on("usePowerup", ({type, powerupId, roomCode, userId, targetId}) => {
+		const player = onlineUsers[roomCode]?.find((p) => p.socketID === userId);
+		const targetPlayer = onlineUsers[roomCode]?.find((p) => p.socketID === targetId);
+
+		if (!player || player.powerups[powerupId] <= 0) {
+			return;
+		}
+
+		// Reduce powerup count
+		player.powerups[powerupId]--;
+
+		// Notify client about powerup consumption
+		io.to(userId).emit("powerupUsed", {type, powerupId});
+
+		switch (type) {
+			case "trueVision":
+				if (targetPlayer) {
+					// Send cards only to the player who used the powerup
+					io.to(userId).emit("revealCards", {
+						cards: targetPlayer.cards,
+						playerName: targetPlayer.name,
+					});
+					// Notify room about powerup use
+					io.to(roomCode).emit("updateGameEventMessage", `${player.name} used True Vision on ${targetPlayer.name}!`);
+				}
+				break;
+
+			case "skipPlayer":
+				if (targetPlayer && targetPlayer.socketID === currentTurnPlayer) {
+					const nextPlayer = findNextTurn(targetId, roomCode);
+					handleTurnChange(roomCode, nextPlayer.socketID, targetPlayer);
+					io.to(roomCode).emit("updateGameEventMessage", `${player.name} skipped ${targetPlayer.name}'s turn!`);
+				}
+				break;
+
+			case "shield":
+				player.isShielded = true;
+				io.to(userId).emit("updateLocalPlayer", player);
+				io.to(roomCode).emit("updateGameEventMessage", `${player.name} activated a shield!`);
+				break;
+
+			case "cleanse":
+				player.preOrderInfo = {isPreordered: false, playerWhoPreordered: null};
+				io.to(userId).emit("updateLocalPlayer", player);
+				io.to(roomCode).emit("updateGameEventMessage", `${player.name} cleansed all preorders!`);
+				break;
+		}
+
+		// Update powerup state for user
+		io.to(userId).emit("updateLocalPlayer", player);
+	});
+
+	// Server-side code
+	socket.on("globalAccusation", ({roomCode, accusedPlayerID}) => {
+		// Broadcast to all clients in the room that this player has been accused
+		io.to(roomCode).emit("playerAccused", {
+			accusedId: accusedPlayerID,
+			accused: true,
 		});
 	});
 });
