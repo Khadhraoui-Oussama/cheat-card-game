@@ -37,8 +37,8 @@ const LandingPage = () => {
 	return (
 		<Container>
 			<Col>
-				<Stack className="flex justify-items-center align-items-center vh-100 " style={{border: "solid 2px blue"}}>
-					<Stack gap={1} style={{width: "80%", maxHeight: "90vh", border: "solid 2px red"}} className="m-auto pt-2">
+				<Stack className="flex justify-items-center align-items-center vh-100 ">
+					<Stack gap={1} style={{width: "80%", maxHeight: "90vh"}} className="m-auto pt-2">
 						<PlayerInfoSelect />
 						<JoinGameRoomSection />
 						<Button
