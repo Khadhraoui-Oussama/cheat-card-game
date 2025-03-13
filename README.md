@@ -19,7 +19,7 @@ Please note that the code may not follow best practices and the way it's written
 
 #### Frontend :
 
--   **[dnd-kit](https://dndkit.com/)** for the drang and drop functionality.
+-   **[dnd-kit](https://dndkit.com/)** for the drag and drop functionality.
 -   **[ReactBoostrap](https://react-bootstrap.netlify.app/)** for general styling.
 -   **[TailwindCSS](https://tailwindcss.com/)** for additional styling.
 -   **[validator](https://www.npmjs.com/package/validator)** for validating varying inputs.
@@ -33,7 +33,7 @@ Please note that the code may not follow best practices and the way it's written
 
 ### External Services
 
--   **Hosting:** Netlify where I hosted the frontend / Render where I hosted the backend.
+-   **Hosting:** [Netlify](https://www.netlify.com/) where I hosted the frontend / [Render](https://render.com/) where I hosted the backend.
 
 ## Improvements & Future Enhancements
 
