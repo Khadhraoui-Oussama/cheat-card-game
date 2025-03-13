@@ -2,7 +2,9 @@
 
 ## Introduction
 
-This is a hobby porject ,wher I built a multiplayer card game "cheat" in order to improve my skills in full-stack development and problem solving. My goal for this project was to create an interactive real-time online multiplayer version of the popular game "cheat" with slightly modified game rules.
+This is a hobby porject ,where I have built a multiplayer card game "cheat" in order to improve my skills in full-stack development and problem solving. My goal for this project was to create an interactive real-time online multiplayer version of the popular game "cheat" with slightly modified game rules.
+
+Please note that the code may not follow best practices and the way it's written may seem counterintuitive at best and wrong at worst, please keep in mind this is a hobby project is solely intended for learning purposes.  
 
 ## Technical Details
 
@@ -17,7 +19,7 @@ This is a hobby porject ,wher I built a multiplayer card game "cheat" in order t
 
 #### Frontend :
 
--   **[dnd-kit](https://dndkit.com/)** for the drang and drop functionality.
+-   **[dnd-kit](https://dndkit.com/)** for the drag and drop functionality.
 -   **[ReactBoostrap](https://react-bootstrap.netlify.app/)** for general styling.
 -   **[TailwindCSS](https://tailwindcss.com/)** for additional styling.
 -   **[validator](https://www.npmjs.com/package/validator)** for validating varying inputs.
@@ -31,7 +33,7 @@ This is a hobby porject ,wher I built a multiplayer card game "cheat" in order t
 
 ### External Services
 
--   **Hosting:** Netlify where I hosted the frontend / Render where I hosted the backend.
+-   **Hosting:** [Netlify](https://www.netlify.com/) where I hosted the frontend / [Render](https://render.com/) where I hosted the backend.
 
 ## Improvements & Future Enhancements
 
