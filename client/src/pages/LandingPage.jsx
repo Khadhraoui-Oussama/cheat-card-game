@@ -14,6 +14,7 @@ const LandingPage = () => {
 
 	const {socket, roomCode, setRoomCode} = useContext(SocketContext);
 	const [joinAlert, setJoinAlert] = useState(false);
+	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
 		setPlayer({playerSocket: socket, name: "", gender: "male", avatar: "", isLeader: true});
@@ -21,19 +22,28 @@ const LandingPage = () => {
 	}, []); //ON MOUNT SET THE PLAYER OBJECT TO THE ABOVE , WHAT HAPPENS WHEN THE PLAYER DISCONNECTS AND COMES BACK PROBABLY NEED TO ACCESS INTERNAL SOTRAGE
 
 	const handleCreateNewRoom = () => {
-		// Clear any existing room code when creating a new game
+		setIsCreating(true);
 		setRoomCode("");
-		// Emit getRoomSize with empty string to generate new room
-		socket.emit("getRoomSize", "");
-		socket.on("getRoomSizeR", (roomSize) => {
+
+		const handleRoomSize = (roomSize) => {
 			if (roomSize) {
 				setJoinAlert(true);
 			} else {
 				setJoinAlert(false);
 				openPopup();
 			}
-		});
+			setIsCreating(false);
+		};
+
+		socket.emit("getRoomSize", "");
+		socket.on("getRoomSizeR", handleRoomSize);
+
+		// Cleanup
+		return () => {
+			socket.off("getRoomSizeR", handleRoomSize);
+		};
 	};
+
 	return (
 		<Container className="d-flex justify-content-center align-items-center vh-100">
 			<Col xs={12} sm={10} md={8} lg={6} xl={4} className="bg-fuchsia-200 rounded-3 shadow-lg">
@@ -44,8 +54,8 @@ const LandingPage = () => {
 						<Button
 							onClick={handleCreateNewRoom}
 							style={{minWidth: "200px"}} // Adjust width as needed
-						>
-							Create a new game
+							disabled={isCreating}>
+							{isCreating ? "Creating game..." : "Create a new game"}
 						</Button>
 					</div>
 					{joinAlert && (

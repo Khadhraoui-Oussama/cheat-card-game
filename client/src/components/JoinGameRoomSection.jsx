@@ -4,11 +4,12 @@ import {SocketContext} from "../contexts/SocketContext";
 import {Link, useNavigate} from "react-router-dom";
 import {Alert, Button} from "react-bootstrap";
 
-const JoinGameSection = () => {
+const JoinGameRoomSection = () => {
 	const {roomCode, setRoomCode, socket} = useContext(SocketContext);
 	const {player, setPlayer} = useContext(PlayerContext);
 	const [joinAlert, setJoinAlert] = useState(false);
 	const [playerInfoMissingAlert, setPlayerInfoMissingAlert] = useState(false);
+	const [isJoining, setIsJoining] = useState(false);
 	const navigate = useNavigate();
 
 	//this could be trouble , why are we connecting to the socket and later disconnecting here and in the gameWaitingArea and a bunch of  other places , might need to change the way we handle it
@@ -39,6 +40,13 @@ const JoinGameSection = () => {
 			setPlayerInfoMissingAlert(true);
 		}
 	};
+
+	const handleJoin = () => {
+		setIsJoining(true);
+		handleJoinRoomWithCode();
+		setIsJoining(false);
+	};
+
 	return (
 		<div>
 			<input
@@ -52,12 +60,8 @@ const JoinGameSection = () => {
 				}}
 				id="room-code"
 			/>
-			<Button
-				onClick={() => {
-					setPlayer({...player, isLeader: false});
-					handleJoinRoomWithCode();
-				}}>
-				Join using a room code
+			<Button onClick={handleJoin} disabled={isJoining}>
+				{isJoining ? "Joining room..." : "Join using room code"}
 			</Button>
 			{playerInfoMissingAlert && (
 				<Alert key="danger" variant="danger">
@@ -73,7 +77,7 @@ const JoinGameSection = () => {
 	);
 };
 
-export default JoinGameSection;
+export default JoinGameRoomSection;
 //TODO FIND A WAY TO LIMIT JOINING A ROOM TO 4 SOCKETS ONLY DONE
 //JOIN WITH CODE NOW CHECKS THE PLAYER INFO (NAME AND AVATAR)
 //FIND A WAY TO MAKE SURE THAT THE ROOMCODE WHEN CHOOSING START A NEW GAME IS BASED ON THE SOCKET AND WHEN PRESSING JOIN ROOM IT IS THE VALUE ENTERED AND BOTH FUNTIONALITIES WONT INTERFERE

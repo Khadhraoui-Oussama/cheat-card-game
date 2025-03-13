@@ -17,7 +17,8 @@ const App = () => {
 
 	useEffect(() => {
 		// const backendUrl = import.meta.env.PROD_BACKEND_URL;
-		const backendUrl = import.meta.env.PROD_BACKEND_URL;
+		const backendUrl = import.meta.env.VITE_DEV_BACKEND_URL;
+		console.log(backendUrl);
 		const newSocket = io(backendUrl, {autoConnect: false});
 		setSocket(newSocket);
 		return () => newSocket.close(); // Clean up the socket connection on component unmount
