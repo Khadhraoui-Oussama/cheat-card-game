@@ -18,11 +18,11 @@ const GameWaitingArea = () => {
 		// why are we creting a new roomcode and a new playerobject ??
 		//might need to revisit how we pass state and data
 		socket.on("connect", () => {
-			console.log("Socket connected:", socket.id);
+			//console.log("Socket connected:", socket.id);
 			if (!roomCode) {
 				const newRoomCode = socket.id.substring(0, 7);
 				setRoomCode(newRoomCode);
-				console.log("ROOMCODE", newRoomCode);
+				//console.log("ROOMCODE", newRoomCode);
 			} else {
 				const playerNewObj = {
 					name: player.name,
@@ -36,7 +36,7 @@ const GameWaitingArea = () => {
 		});
 
 		socket.on("updateUserList", async (updatedUserList) => {
-			console.log("Updated user list received:", updatedUserList);
+			//console.log("Updated user list received:", updatedUserList);
 			//makes sure that a leader is always assigned if not present at first
 			setUserList(updatedUserList);
 		});

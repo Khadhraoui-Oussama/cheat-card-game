@@ -13,9 +13,9 @@ const AvatarSelect = () => {
 		avatarList.push(`/avatars/${prefix}${index}.svg`);
 	}
 
-	useEffect(() => {
-		console.log("player", player);
-	}, [player]);
+	// useEffect(() => {
+	// 	console.log("player", player);
+	// }, [player]);
 
 	return avatarList.map((imagePath, indexKey) => {
 		const bg_color = imagePath === selectedAvatarPath ? "bg-success" : "";

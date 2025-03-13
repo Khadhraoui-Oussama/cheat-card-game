@@ -61,10 +61,10 @@ const GameBoard = () => {
 
 		setActiveId(null);
 	};
-	useEffect(() => {
-		console.log("Your cards:", yourCards);
-		console.log("Cards to play:", cardsToPlay);
-	}, [yourCards, cardsToPlay]);
+	// useEffect(() => {
+	// 	console.log("Your cards:", yourCards);
+	// 	console.log("Cards to play:", cardsToPlay);
+	// }, [yourCards, cardsToPlay]);
 
 	const gameLogic = () => {
 		//HAVE TO IMPLEMENT A START BUTTON CLICKED BY THE LEADER TO START THE GAME

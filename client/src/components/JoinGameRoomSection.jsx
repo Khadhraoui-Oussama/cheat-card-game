@@ -27,7 +27,7 @@ const JoinGameSection = () => {
 			socket.emit("getRoomSize", roomCode);
 			socket.on("getRoomSizeR", (roomSize) => {
 				if (roomSize === 4 || roomSize > 4) {
-					console.log("roomSize is full");
+					// console.log("roomSize is full");
 					setPlayer({...player, isLeader: false}); // why this change in state ??
 					setJoinAlert(true);
 				} else {

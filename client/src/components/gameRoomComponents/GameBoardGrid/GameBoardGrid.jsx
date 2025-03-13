@@ -84,10 +84,10 @@ const GameBoardGrid = () => {
 
 		setActiveId(null);
 	};
-	useEffect(() => {
-		console.log("Your cards:", yourCards);
-		console.log("Cards to play:", cardsToPlay);
-	}, [yourCards, cardsToPlay]);
+	// useEffect(() => {
+	// 	console.log("Your cards:", yourCards);
+	// 	console.log("Cards to play:", cardsToPlay);
+	// }, [yourCards, cardsToPlay]);
 
 	/** END PREVIOUS GAMEBOARD LOGIC **/
 
@@ -140,7 +140,7 @@ const GameBoardGrid = () => {
 			setUsersInRoom(usersArray);
 			setIsPlayersDataLoading(false); // Data is loaded, stop showing placeholders
 			getPlayerAndOthers(usersArray);
-			console.log("users in the room array: ", usersArray);
+			// console.log("users in the room array: ", usersArray);
 		});
 
 		socket.on("updateUserList", (updatedUserList) => {
@@ -152,7 +152,7 @@ const GameBoardGrid = () => {
 			setUsersInRoom(updatedUserList);
 		});
 		socket.on("startGameR", (roomCode) => {
-			console.log("Game started in room:", roomCode);
+			// console.log("Game started in room:", roomCode);
 			setGameStarted(true);
 			setGameOver(false);
 		});
@@ -160,7 +160,7 @@ const GameBoardGrid = () => {
 		socket.on("updateLocalPlayer", (player) => {
 			setLocalPlayer(player);
 			setYourCards(player.cards);
-			console.log("Local player updated:", player);
+			// console.log("Local player updated:", player);
 		});
 
 		socket.on("updateTurn", (data) => {
@@ -173,13 +173,13 @@ const GameBoardGrid = () => {
 			}
 		});
 		socket.on("gameOver", (winner) => {
-			console.log("Game Over, Winner:", winner);
+			// console.log("Game Over, Winner:", winner);
 			setTimeLeft(0);
 			setGameOver(true);
 			setEventMessage(`Game Over! Winner is ${winner.name}`);
 		});
 		socket.on("receiveCards", (player) => {
-			console.log("Received my cards:", player.cards); // Log the received cards
+			//console.log("Received my cards:", player.cards); // Log the received cards
 			// Extract the array from the playerCards property
 			setYourCards(player.cards); // Use the playerCards array or empty array as fallback
 			setLocalPlayer(player);
@@ -188,7 +188,7 @@ const GameBoardGrid = () => {
 			// {cardsPlayedArray, cardValueTold}
 			const {roomCode, socketID, accusedPlayerID} = data;
 			socket.emit("accuse", {roomCode, socketID, accusedPlayerID});
-			console.log("accusing player:", {roomCode, socketID, accusedPlayerID});
+			//console.log("accusing player:", {roomCode, socketID, accusedPlayerID});
 		});
 		socket.on("updateGameEventMessage", (message) => {
 			setEventMessage(message);
@@ -204,7 +204,7 @@ const GameBoardGrid = () => {
 		});
 		// Update the playPowerupDice socket handler
 		socket.on("playPowerupDice", (data) => {
-			console.log("Powerup dice data:", data);
+			//console.log("Powerup dice data:", data);
 			setPowerupAnimationId(data.powerUpID);
 			setLastPowerupReceiver(data.accuserName);
 			setShowPowerupAnimation(true);
@@ -241,10 +241,10 @@ const GameBoardGrid = () => {
 		};
 	}, [socket]);
 
-	useEffect(() => {
-		console.log("Current Player:", localPlayer);
-		console.log("Other Players:", otherPlayers);
-	}, [localPlayer, otherPlayers]);
+	// useEffect(() => {
+	// 	console.log("Current Player:", localPlayer);
+	// 	console.log("Other Players:", otherPlayers);
+	// }, [localPlayer, otherPlayers]);
 
 	//WE HAVE LOCAL PLAYER WHICH IS US , AND THE OTHER PLAYERS IN THE ROOM IN otherPlayers ARRAY
 
@@ -283,7 +283,7 @@ const GameBoardGrid = () => {
 		// Clear the cards-to-play area
 		setYourCards([...yourCards, ...cardsToPlay]);
 		setCardsToPlay([]);
-		console.log("Turn cancelled");
+		//console.log("Turn cancelled");
 	};
 	/********  END    ********/
 
@@ -585,7 +585,7 @@ const GameBoardGrid = () => {
 								customDroppableAreaLabel={"Drag your cards here to keep them in your hand"}
 							/>
 						)}
-						{console.log("isNewTurn", isNewTurn, " localPlayerHasTurn", localPlayerHasTurn)}
+						{/* {console.log("isNewTurn", isNewTurn, " localPlayerHasTurn", localPlayerHasTurn)} */}
 						{isNewTurn && localPlayerHasTurn ? (
 							<div className="d-flex justify-center items-center gap-2 p-2 mb-2 bg-amber-200 text-blue-950">
 								<label htmlFor="newSelectedCardToPlay">Ech Habetet : </label>
