@@ -6,6 +6,8 @@ This is a hobby porject ,where I have built a multiplayer card game "cheat" in o
 
 Please note that the code may not follow best practices and the way it's written may seem counterintuitive at best and wrong at worst, please keep in mind this is a hobby project is solely intended for learning purposes.  
 
+the game can be played here : https://superb-kulfi-fa8c06.netlify.app/ (A domain name upgrade is being considered.)
+
 ## Technical Details
 
 ### Main Technologies Used
