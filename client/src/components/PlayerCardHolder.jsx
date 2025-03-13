@@ -1,8 +1,8 @@
-import { Card, Placeholder, Spinner } from "react-bootstrap";
+import {Card, Placeholder, Spinner} from "react-bootstrap";
 
 const PlayerCardHolder = () => {
 	return (
-		<Card className="w-50 m-auto" style={{ minHeight: "200px" }}>
+		<Card className="w-50 m-auto shadow-2xl" style={{height: "100%"}}>
 			<Spinner animation="border" role="img" className="m-auto pt-3">
 				<span className="visually-hidden">Loading Player Image...</span>
 			</Spinner>

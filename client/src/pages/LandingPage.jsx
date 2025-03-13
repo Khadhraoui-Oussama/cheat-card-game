@@ -35,33 +35,33 @@ const LandingPage = () => {
 		});
 	};
 	return (
-		<Container>
-			<Col>
-				<Stack className="flex justify-items-center align-items-center vh-100 ">
-					<Stack gap={1} style={{width: "80%", maxHeight: "90vh"}} className="m-auto pt-2">
-						<PlayerInfoSelect />
-						<JoinGameRoomSection />
+		<Container className="d-flex justify-content-center align-items-center vh-100">
+			<Col xs={12} sm={10} md={8} lg={6} xl={4} className="bg-fuchsia-200 rounded-3 shadow-lg">
+				<Stack gap={3} className="p-4">
+					<PlayerInfoSelect />
+					<JoinGameRoomSection />
+					<div className="d-flex justify-content-center">
 						<Button
-							onClick={() => {
-								handleCreateNewRoom();
-							}}>
+							onClick={handleCreateNewRoom}
+							style={{minWidth: "200px"}} // Adjust width as needed
+						>
 							Create a new game
 						</Button>
-						{joinAlert && (
-							<Alert key="danger" variant="danger">
-								Looks like there is already a room with that code , Please try another code.
-							</Alert>
-						)}
-						<Popup open={isOpen} modal nested position="center" onClose={() => setIsOpen(false)}>
-							<GameOptionsSelect />
-						</Popup>
-						<LobbyFooter />
-						{inputError && (
-							<Alert key="danger" variant="danger">
-								Some input fields are missing , please Make sure to select an avatar and choose a name between 3 and 20 characters
-							</Alert>
-						)}
-					</Stack>
+					</div>
+					{joinAlert && (
+						<Alert key="danger" variant="danger">
+							Looks like there is already a room with that code, Please try another code.
+						</Alert>
+					)}
+					<Popup open={isOpen} modal nested position="center" onClose={() => setIsOpen(false)}>
+						<GameOptionsSelect />
+					</Popup>
+					<LobbyFooter />
+					{inputError && (
+						<Alert key="danger" variant="danger">
+							Some input fields are missing, please Make sure to select an avatar and choose a name between 3 and 20 characters
+						</Alert>
+					)}
 				</Stack>
 			</Col>
 		</Container>

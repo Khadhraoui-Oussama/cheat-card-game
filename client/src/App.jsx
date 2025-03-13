@@ -1,5 +1,5 @@
 import {useContext, useEffect} from "react";
-import {Routes, Route, Navigate} from "react-router-dom"; // ****
+import {Routes, Route, Navigate} from "react-router-dom";
 import FeedBack from "./pages/FeedBack";
 import LandingPage from "./pages/LandingPage";
 import GameRoom from "./pages/GameRoom";
@@ -16,8 +16,9 @@ const App = () => {
 	const {socket, setSocket, roomCode, setRoomCode} = useContext(SocketContext);
 
 	useEffect(() => {
-		const newSocket = io("https://card-game-zcy5.onrender.com", {autoConnect: false});
-		//https://localhost:5000
+		// const backendUrl = import.meta.env.PROD_BACKEND_URL;
+		const backendUrl = import.meta.env.PROD_BACKEND_URL;
+		const newSocket = io(backendUrl, {autoConnect: false});
 		setSocket(newSocket);
 		return () => newSocket.close(); // Clean up the socket connection on component unmount
 	}, [setSocket]);

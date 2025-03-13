@@ -76,41 +76,46 @@ const GameWaitingArea = () => {
 	}, [roomCode, socket, player]);
 
 	return (
-		<Container className="w-75 vh-100 align-center">
-			<Stack className="flex align-items-center py-2">
-				<h4>Waiting for other players To Join the room</h4>
-				<h5>Game code {roomCode}</h5>
-			</Stack>
-			<Stack className="flex align-items-center w-50 m-auto ">
-				<Row className="w-100">
-					<Col>{userList[0] ? <PlayerCard player={userList[0]} /> : <PlayerCardHolder />}</Col>
-					<Col>{userList[1] ? <PlayerCard player={userList[1]} /> : <PlayerCardHolder />}</Col>
-				</Row>
-				<Row className="w-100">
-					<Col>{userList[2] ? <PlayerCard player={userList[2]} /> : <PlayerCardHolder />}</Col>
-					<Col>{userList[3] ? <PlayerCard player={userList[3]} /> : <PlayerCardHolder />}</Col>
-				</Row>
-				<Row className=" w-100 ">
-					<Col>
-						<Button
-							className="m-auto w-100"
-							variant={userList.length < 4 ? "secondary" : "success"}
-							onClick={() => {
-								if (userList.length >= 4) {
-									socket.emit("navigateToGameRoom", roomCode);
-									navigate(`/play/${roomCode}`); // Navigate programmatically
-								}
-							}}
-							disabled={userList.length < 4 || !player.isLeader} //the button is disabled for all the users when the users joined in are less than 4 and only activated to the leader of the room
-						>
-							Play Now
-						</Button>
-					</Col>
-					<Col className="m-auto text-center ">
-						<span className="m-auto w-100">{userList.length}/4</span>
-					</Col>
-				</Row>
-			</Stack>
+		<Container className="d-flex justify-content-center align-items-center vh-100">
+			<Col xs={12} sm={10} md={8} lg={6} xl={4} className="bg-green-300 rounded-3 shadow-lg p-4">
+				<Stack gap={4}>
+					<div className="text-center">
+						<h4>Waiting for other players</h4>
+						<h5 className="text-muted pt-1">Game code: {roomCode}</h5>
+					</div>
+
+					<div className="d-flex flex-column gap-3">
+						<Row className="g-3">
+							<Col xs={6}>{userList[0] ? <PlayerCard player={userList[0]} /> : <PlayerCardHolder />}</Col>
+							<Col xs={6}>{userList[1] ? <PlayerCard player={userList[1]} /> : <PlayerCardHolder />}</Col>
+						</Row>
+						<Row className="g-3">
+							<Col xs={6}>{userList[2] ? <PlayerCard player={userList[2]} /> : <PlayerCardHolder />}</Col>
+							<Col xs={6}>{userList[3] ? <PlayerCard player={userList[3]} /> : <PlayerCardHolder />}</Col>
+						</Row>
+					</div>
+
+					<Row className="align-items-center g-3">
+						<Col xs={8}>
+							<Button
+								variant={userList.length < 4 ? "secondary" : "success"}
+								onClick={() => {
+									if (userList.length >= 4) {
+										socket.emit("navigateToGameRoom", roomCode);
+										navigate(`/play/${roomCode}`);
+									}
+								}}
+								disabled={userList.length < 4 || !player.isLeader}
+								className="w-100">
+								Play Now
+							</Button>
+						</Col>
+						<Col xs={4} className="text-center">
+							<span className="fs-5">{userList.length}/4</span>
+						</Col>
+					</Row>
+				</Stack>
+			</Col>
 		</Container>
 	);
 };
