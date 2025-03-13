@@ -35,9 +35,13 @@ const GameWaitingArea = () => {
 			}
 		});
 
-		socket.on("updateUserList", (updatedUserList) => {
+		socket.on("updateUserList", async (updatedUserList) => {
 			console.log("Updated user list received:", updatedUserList);
+			//makes sure that a leader is always assigned if not present at first
 			setUserList(updatedUserList);
+		});
+		socket.on("updateLocalPlayer", (newPlayer) => {
+			setPlayer((prev) => ({...prev, isLeader: newPlayer.isLeader}));
 		});
 
 		socket.on("navigateToGameRoomR", (roomCode) => {

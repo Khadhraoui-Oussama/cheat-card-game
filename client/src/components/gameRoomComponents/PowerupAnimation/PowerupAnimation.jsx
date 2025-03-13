@@ -3,7 +3,7 @@ import "./PowerupAnimation.css";
 
 const PowerupAnimation = ({isVisible, powerUpID, onAnimationComplete}) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
-	const powerups = ["Shield", "True Vision", "Cleanse", "Skip Another's Turn"];
+	const powerups = ["True Vision", "Cleanse", "Skip Another's Turn"];
 
 	useEffect(() => {
 		if (isVisible) {

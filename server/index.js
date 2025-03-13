@@ -31,6 +31,7 @@ const io = new Server(expressServer, {
 		origin: "*",
 		methods: ["GET", "POST"],
 	},
+	connectionStateRecovery: {},
 }); /* This line creates a new instance of a Socket.IO Server (io) that is attached to the previously created HTTP server (expressServer).
 The configuration object passed to the Server constructor sets up Cross-Origin Resource Sharing (CORS) to allow requests from any origin (origin: "*") and to permit only GET and POST methods.*/
 
@@ -229,49 +230,55 @@ io.on("connection", (socket) => {
 			return;
 		}
 
+		// Reset game state for the room
+		pileOfCardsInEachRoom[roomCode] = [];
+		lastMovePlayedInRoom[roomCode] = null;
+
+		// Clear any existing timers
+		if (roomTimers.has(roomCode)) {
+			clearInterval(roomTimers.get(roomCode).intervalId);
+			roomTimers.delete(roomCode);
+		}
+
 		// Create and shuffle the deck
 		const deck = shuffleDeck(createDeck());
 
-		// Initialize the pile for this room
-		pileOfCardsInEachRoom[roomCode] = [];
-
-		// Deal 13 cards to each player and update their player object
+		// Deal 13 cards to each player and reset their game state
 		let localPlayer;
 		players.forEach((player, index) => {
 			const playerCards = deck.slice(index * 13, (index + 1) * 13);
-			player.cards = playerCards; // Add the cards to the player object
-			player.preOrderInfo = {isPreordered: false, playerWhoPreordered: null}; // Set the player's preordered status to false
-			player.issuedPreorderDetails = {hasIssuedPreorder: false, playerIssuedAgainstID: null}; // Set the player's issuedPreorder status to false
-			player.score = 0; // Set the player's score to 0
-			//powerups ids : shield : 0, trueVision : 1, cleanse : 2, skipAnothersTurn : 3
-			player.powerups = {0: 0, 1: 0, 2: 0, 3: 0}; // Set the player's powerups to 0
-			if (player.isLeader) {
-				player.hasTurn = true;
-			} else {
-				player.hasTurn = false; // Set the player's turn to false
-			}
 
-			// Send cards privately to each player
-			io.to(player.socketID).emit("receiveCards", player);
-		});
+			// Update player object with fresh game state
+			Object.assign(player, {
+				cards: playerCards,
+				preOrderInfo: {isPreordered: false, playerWhoPreordered: null},
+				issuedPreorderDetails: {hasIssuedPreorder: false, playerIssuedAgainstID: null},
+				score: 0,
+				powerups: {0: 0, 1: 0, 2: 0, 3: 0},
+				hasTurn: player.isLeader,
+				isShielded: false,
+			});
 
-		//SEARCH FOR THE LEADER IE THE PERSON WHO INITIATED THE STARTGAME SIGNAL
-		//IN ORDER TO GIVE HIM TURN
-		players.forEach((player) => {
+			// Store reference to leader
 			if (player.socketID === socketID) {
 				localPlayer = player;
 			}
-			//io.to(player.socketID).emit("updateLocalPlayer", localPlayer);
-		});
-		//GIVE TURN TO THE GAME ROOM LEADER
-		handleTurnChange(roomCode, localPlayer.socketID, null);
-		io.to(roomCode).emit("startGameR", roomCode);
 
-		// Update the onlineUsers object with the modified players
+			// Send updated player state to EACH player individually
+			io.to(player.socketID).emit("receiveCards", player);
+			io.to(player.socketID).emit("updateLocalPlayer", player);
+		});
+
+		// Update global state
 		onlineUsers[roomCode] = players;
 
-		// Notify all players that the game has started
+		// Initialize turn for leader
+		handleTurnChange(roomCode, localPlayer.socketID, null);
+
+		// Broadcast game start to all players
 		io.to(roomCode).emit("startGameR", roomCode);
+		io.to(roomCode).emit("updateGameEventMessage", "New game started! Good luck!");
+		io.to(roomCode).emit("updateUserList", players);
 	});
 
 	//implement server response to the player making a move
@@ -292,10 +299,17 @@ io.on("connection", (socket) => {
 			const currentPlayer = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
 
 			if (isFinalCard) {
-				// Check if the final card matches the claimed value
 				const finalCard = cardsPlayedArray[0];
-				const actualCardValue = finalCard.slice(0, -1); // Remove suit
-				const isJoker = finalCard === "1J" || "2J";
+				const actualCardValue = finalCard.slice(0, -1);
+				const isJoker = finalCard === "1J" || finalCard === "2J";
+
+				// Send last card info to all clients
+				io.to(roomCode).emit("lastCardPresented", {
+					playerName: currentPlayer.name,
+					card: finalCard,
+					cardValueClaimed: cardValueTold,
+					isFinalCard: true,
+				});
 
 				if (actualCardValue !== cardValueTold && !isJoker) {
 					// Player lied about their final card - they must take all cards
@@ -303,11 +317,11 @@ io.on("connection", (socket) => {
 					pileOfCardsInEachRoom[roomCode] = [];
 
 					handleTurnChange(roomCode, socketID, currentPlayer);
-					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} lied about their final card and must take all cards from the pile, then play again!`);
+					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} lied about their final card and must take all cards from the pile then play again!`);
 
 					io.to(currentPlayer.socketID).emit("updateLocalPlayer", currentPlayer);
 				} else {
-					// Player won!
+					// Player won truthfully!
 					io.to(roomCode).emit("gameOver", currentPlayer);
 					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} has won the game by playing their final card truthfully!`);
 				}
@@ -598,6 +612,67 @@ io.on("connection", (socket) => {
 				roomTimers.delete(roomCode);
 			}
 		});
+
+		// Notify remaining players in affected rooms
+		roomsToUpdate.forEach((roomCode) => {
+			if (onlineUsers[roomCode]?.length < 4) {
+				// Stop any ongoing game timers
+				if (roomTimers.has(roomCode)) {
+					clearInterval(roomTimers.get(roomCode).intervalId);
+					roomTimers.delete(roomCode);
+				}
+			}
+			io.to(roomCode).emit("updateUserList", onlineUsers[roomCode]);
+		});
+	});
+
+	// Inside io.on("connection") block
+	socket.on("disconnect", () => {
+		// Find which rooms this socket was in
+		const affectedRooms = Object.keys(onlineUsers).filter((roomCode) => onlineUsers[roomCode].some((user) => user.socketID === socket.id));
+
+		affectedRooms.forEach((roomCode) => {
+			// Find the disconnected player before removing them
+			const disconnectedPlayer = onlineUsers[roomCode].find((user) => user.socketID === socket.id);
+
+			// Remove the disconnected player
+			onlineUsers[roomCode] = onlineUsers[roomCode].filter((user) => user.socketID !== socket.id);
+
+			// Notify remaining players
+			if (onlineUsers[roomCode].length > 0) {
+				io.to(roomCode).emit("playerDisconnected", {
+					remainingPlayers: onlineUsers[roomCode],
+					disconnectedPlayer: disconnectedPlayer,
+				});
+			}
+
+			// Clean up room if empty
+			if (onlineUsers[roomCode].length === 0) {
+				delete onlineUsers[roomCode];
+				delete pileOfCardsInEachRoom[roomCode];
+				if (roomTimers.has(roomCode)) {
+					clearInterval(roomTimers.get(roomCode).intervalId);
+					roomTimers.delete(roomCode);
+				}
+			}
+		});
+	});
+
+	// Add handler for manual quit
+	socket.on("leaveRoom", (roomCode) => {
+		const leavingPlayer = onlineUsers[roomCode]?.find((user) => user.socketID === socket.id);
+
+		if (leavingPlayer && onlineUsers[roomCode]) {
+			// Remove the leaving player
+			onlineUsers[roomCode] = onlineUsers[roomCode].filter((user) => user.socketID !== socket.id);
+
+			// Notify remaining players
+			socket.leave(roomCode);
+			io.to(roomCode).emit("playerDisconnected", {
+				remainingPlayers: onlineUsers[roomCode],
+				disconnectedPlayer: leavingPlayer,
+			});
+		}
 	});
 
 	socket.on("usePowerup", ({type, powerupId, roomCode, userId, targetId}) => {
@@ -628,17 +703,14 @@ io.on("connection", (socket) => {
 				break;
 
 			case "skipPlayer":
-				if (targetPlayer && targetPlayer.socketID === currentTurnPlayer) {
-					const nextPlayer = findNextTurn(targetId, roomCode);
-					handleTurnChange(roomCode, nextPlayer.socketID, targetPlayer);
-					io.to(roomCode).emit("updateGameEventMessage", `${player.name} skipped ${targetPlayer.name}'s turn!`);
+				{
+					const currentTurnPlayer = onlineUsers[roomCode].find((p) => p.hasTurn)?.socketID;
+					if (targetPlayer && targetPlayer.socketID === currentTurnPlayer) {
+						const nextPlayer = findNextTurn(targetId, roomCode);
+						handleTurnChange(roomCode, nextPlayer.socketID, targetPlayer);
+						io.to(roomCode).emit("updateGameEventMessage", `${player.name} skipped ${targetPlayer.name}'s turn!`);
+					}
 				}
-				break;
-
-			case "shield":
-				player.isShielded = true;
-				io.to(userId).emit("updateLocalPlayer", player);
-				io.to(roomCode).emit("updateGameEventMessage", `${player.name} activated a shield!`);
 				break;
 
 			case "cleanse":
@@ -713,6 +785,44 @@ io.on("connection", (socket) => {
 		const player = onlineUsers[roomCode].find((u) => u.socketID === socketID);
 		sendSystemMessage(roomCode, `${player.name} played their cards.`);
 	});
+
+	// Inside the io.on("connection") block, update the gameOver handler:
+	socket.on("gameOver", (winner) => {
+		// Clear any existing timer for this room
+		if (roomTimers.has(roomCode)) {
+			clearInterval(roomTimers.get(roomCode).intervalId);
+			roomTimers.delete(roomCode);
+		}
+
+		console.log("Game Over, Winner:", winner);
+		io.to(roomCode).emit("gameOver", winner);
+		io.to(roomCode).emit("updateTimer", 0);
+		io.to(roomCode).emit("updateGameEventMessage", `Game Over! Winner is ${winner.name}`);
+	});
+
+	// Inside your io.on("connection") block
+
+	socket.on("leaveRoom", (roomCode) => {
+		socket.leave(roomCode);
+		// Remove player from room's user list
+		if (onlineUsers[roomCode]) {
+			onlineUsers[roomCode] = onlineUsers[roomCode].filter((user) => user.socketID !== socket.id);
+
+			// If room is empty, clean up room data
+			if (onlineUsers[roomCode].length === 0) {
+				delete onlineUsers[roomCode];
+				delete pileOfCardsInEachRoom[roomCode];
+				delete lastMovePlayedInRoom[roomCode];
+				if (roomTimers.has(roomCode)) {
+					clearInterval(roomTimers.get(roomCode).intervalId);
+					roomTimers.delete(roomCode);
+				}
+			} else {
+				// Notify remaining players
+				io.to(roomCode).emit("updateUserList", onlineUsers[roomCode]);
+			}
+		}
+	});
 });
 
 //I NEED TO SEND A SIGNAL TO THE SERVER WHEN THE BUTTON TURNS GREEN LETTING THE SERVER KNOW TO SEND AN EVENT TO ALL IN THE ROOM TO TELL THEM TO NAVIGATE TO THE GAMEROOM
@@ -760,10 +870,19 @@ MAKE SURE THAT A PLAYER CANNOT PLAY ALL HIS HAND IN ONE GO AND WIN AUTO
 A PLAYER CAN PLAY ALL HIS CARDS EXCEPT HE HAS TO KEEP ONE IN HAND TO NOT WIN AUTO
 AND ONLY WHEN HE HAS ONLY ONE CARD LEFT THEN HE CAN PLAY IT FACE UP AND WIN ,
 IF HE PLAYS THE LAST CARD FACE UP AND IT IS NOT THE SAME AS THE CARD VALUE TOLD THEN HE HAS TO TAKE THE WHOLE PILE OF CARDS TO HIS HAND ELSE HE WINS
-DONE EXCEPT FOR THE LAST CARD BEING FACE UP
+DONE EXCEPT FOR THE LAST CARD BEING FACE UP 
 
-TODO IMPLEMENT THE TIMER LOGIC WHEN STARTING A TURN AND STUFF
-TODO IMPLEMENT THE CHATBOX 
+TODO IMPLEMENT THE TIMER LOGIC WHEN STARTING A TURN AND STUFF DONE
+TODO IMPLEMENT THE CHATBOX  DONE 
 TODO IMLEMENT THE POWERUPS LOGIC , SHIELD TO PROTECT AGAINST AN ACCUSE ,MAKE A PLAYER SKIP THEIR TURN ,TRUE VISION TO SELECT A PLAYERS HAND TO SEE IT , CLEANSE REMOVES YOUR PREORDER FOR THE TURN
-WHEN A PLAYER ACCUSES SOMEONE AND IS RIGHT ,  A DICE ROLLS AND THE ACCUSER GETS A RANDOM POWERUP
+WHEN A PLAYER ACCUSES SOMEONE AND IS RIGHT ,  A DICE ROLLS AND THE ACCUSER GETS A RANDOM POWERUP DONE
+*/
+
+/*
+TOMORROW : TODO : IMPLEMENT THE RECONNECTION LOGIC FOR THE SOCKETS
+TODO : ADD SOUND EFFECTS TO THE GAME
+TODO : IMPLEMENT SETTINGS ON THE CLIENT SIDE TO ALLOW THE PLAYER TO CHANGE THEME , SOUNDS , ETC 
+TODO : IMPLEMENT CONTACT US FORM WITH MY EMAIL ADDRESS FOR FEEDBACK
+TODO : IMPLEMENT HOW TO PLAY TUTORIAL
+TODO : FINALLY FIX THE UI AND IMPROVE IT
 */

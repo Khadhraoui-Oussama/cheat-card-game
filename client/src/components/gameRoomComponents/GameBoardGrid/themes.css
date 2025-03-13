@@ -1,0 +1,36 @@
+.theme-light {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f5;
+    --text-primary: #000000;
+    --border-color: #e0e0e0;
+    --droppable-bg: #f5f5f5;
+    --chat-bg: #ffffff;
+}
+
+.theme-dark {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --text-primary: #ffffff;
+    --border-color: #404040;
+    --droppable-bg: #2d2d2d;
+    --chat-bg: #2d2d2d;
+}
+
+.container1.theme-light {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.container1.theme-dark {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.theme-dark .droppable-area {
+    background-color: var(--droppable-bg) !important;
+}
+
+.theme-dark .chat-box {
+    background-color: var(--chat-bg);
+    border-color: var(--border-color);
+}
