@@ -93,12 +93,18 @@ const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastP
 	};
 
 	if (!playerObject) return null;
-
+	let bgColor;
+	if (hasCurrentTurn) {
+		bgColor = "bg-green-200";
+	} else if (isBeingAccused) {
+		bgColor = "bg-red-100";
+	} else {
+		bgColor = "bg-blue-400";
+	}
 	return (
 		<div
 			className={`d-flex flex-column justify-content-center items-center p-2 rounded 
-            ${hasCurrentTurn ? "bg-green-200" : ""}
-            ${isBeingAccused ? "bg-red-100" : ""}`}>
+        	${bgColor}`}>
 			<div className="d-flex gap-1 justify-content-center items-center">
 				<img src={`/avatars/${playerObject.avatar?.replace("/avatars/", "")}`} width={50} />
 				<h6>{playerObject.name}</h6>

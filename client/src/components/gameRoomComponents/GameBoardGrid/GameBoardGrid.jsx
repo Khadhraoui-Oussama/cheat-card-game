@@ -165,24 +165,12 @@ const GameBoardGrid = () => {
 
 		socket.on("updateTurn", (data) => {
 			setIsNewTurn(data.newTurnStatus);
-			console.log("Turn updated:", data.currentPlayer);
-			const isMyTurn = data.currentPlayer === socket.id;
-			console.log("Is my turn:", isMyTurn, " data.currentplayer :", data.currentPlayer);
-			setLocalPlayerHasTurn(isMyTurn);
-			if (isMyTurn) {
-				setLocalPlayer((prev) => ({
-					...prev,
-					hasTurn: true,
-				}));
-			} else {
-				setLocalPlayer((prev) => ({
-					...prev,
-					hasTurn: false,
-				}));
-			}
+			setLocalPlayerHasTurn(data.currentPlayer === socket.id);
 			setCurrentTurnPlayer(data.currentPlayer);
-			setLastPlayedPlayer(data.lastPlayedPlayer); // Add this
-			if (isMyTurn) console.log("I HAVE TURN");
+			// Only update lastPlayedPlayer if cards were actually played
+			if (data.lastPlayedPlayer !== null) {
+				setLastPlayedPlayer(data.lastPlayedPlayer);
+			}
 		});
 		socket.on("gameOver", (winner) => {
 			console.log("Game Over, Winner:", winner);
@@ -362,7 +350,7 @@ const GameBoardGrid = () => {
 	);
 
 	const [isNewTurn, setIsNewTurn] = useState(false); //to be updtaed when the player wins the accusation wether accuser or accused
-	const [enablePowerupsButtonState, setEnablePowerupsButtonState] = useState({0: 0, 1: 0, 2: 0, 3: 0});
+	const [enablePowerupsButtonState, setEnablePowerupsButtonState] = useState({0: 0, 1: 0, 2: 0});
 
 	// Separate timer-related state and effects
 	const [timeLeft, setTimeLeft] = useState(30);
@@ -390,17 +378,17 @@ const GameBoardGrid = () => {
 
 	// Add these handler functions before the return statement
 	const handleTrueVisionPowerup = () => {
-		if (enablePowerupsButtonState[1] > 0) {
+		if (enablePowerupsButtonState[0] > 0) {
 			setCurrentPowerupAction("trueVision");
 			setShowPlayerSelection(true);
 		}
 	};
 
 	const handleCleansePowerup = () => {
-		if (enablePowerupsButtonState[2] > 0) {
+		if (enablePowerupsButtonState[1] > 0) {
 			socket.emit("usePowerup", {
 				type: "cleanse",
-				powerupId: 2,
+				powerupId: 1,
 				roomCode,
 				userId: socket.id,
 			});
@@ -408,7 +396,7 @@ const GameBoardGrid = () => {
 	};
 
 	const handleSkipPlayerPowerup = () => {
-		if (enablePowerupsButtonState[3] > 0) {
+		if (enablePowerupsButtonState[2] > 0) {
 			setCurrentPowerupAction("skipPlayer");
 			setShowPlayerSelection(true);
 		}
@@ -441,22 +429,21 @@ const GameBoardGrid = () => {
 
 	// Add the handler for player selection
 	const handlePlayerSelect = (selectedPlayer) => {
-		if (currentPowerupAction === "trueVision") {
-			socket.emit("usePowerup", {
-				type: "trueVision",
-				powerupId: 1,
-				roomCode,
-				userId: socket.id,
-				targetId: selectedPlayer.socketID,
-			});
-		} else if (currentPowerupAction === "skipPlayer") {
-			socket.emit("usePowerup", {
-				type: "skipPlayer",
-				powerupId: 3,
-				roomCode,
-				userId: socket.id,
-				targetId: selectedPlayer.socketID,
-			});
+		if (currentPowerupAction === "skipPlayer") {
+			// Check if selected player has current turn
+			if (selectedPlayer.socketID === currentTurnPlayer) {
+				socket.emit("usePowerup", {
+					type: "skipPlayer",
+					powerupId: 2,
+					roomCode,
+					userId: socket.id,
+					targetId: selectedPlayer.socketID,
+				});
+			} else {
+				setEventMessage("Can't skip this player's turn as they don't have the current turn!");
+			}
+		} else if (currentPowerupAction === "trueVision") {
+			// ... existing trueVision logic ...
 		}
 		setShowPlayerSelection(false);
 		setCurrentPowerupAction(null);
@@ -527,18 +514,18 @@ const GameBoardGrid = () => {
 							Settings
 						</Button>
 					</div>
-					<div className=" col-span-2 d-flex justify-center items-center">{eventMessage}</div>
+					<div className=" col-span-2 d-flex justify-center items-center bg-cyan-200 rounded-2xl">{eventMessage}</div>
 					<div className="d-flex justify-center items-center">
 						<Button variant="danger" onClick={handleQuitGame}>
 							Quit Game
 						</Button>
 					</div>
 					{/* second row */}
-					<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[0]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[0]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[0]?.socketID === lastPlayedPlayer} canAccuse={canAccuse} />}</div>
+					<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[0]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[0]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[0]?.socketID === lastPlayedPlayer} canAccuse={canAccuse && lastPlayedPlayer !== null} />}</div>
 					{/* third row */}
-					<div className="col-span-4 d-flex justify-center">
+					<div className="col-span-4 d-flex justify-center gap-1">
 						<div className="col-span-4 d-flex justify-around items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[1]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[1]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[1]?.socketID === lastPlayedPlayer} />}</div>
-						<div className="w-1/3 d-flex justify-center items-center">
+						<div className="w-1/3 d-flex justify-center items-center bg-amber-100 rounded-2xl ">
 							{localPlayerHasTurn ? (
 								<DroppableArea
 									id="cards-to-play"
@@ -566,7 +553,7 @@ const GameBoardGrid = () => {
 					</div>
 					<div className="col-span-4 d-flex justify-around">{!gameOver && <div className={`text-2xl font-bold ${timeLeft > 10 ? "text-green-600" : timeLeft > 5 ? "text-yellow-600" : "text-red-600"}`}>{timeLeft > 0 ? `Time left : ${timeLeft}s` : "Time's up!"}</div>}</div>
 					{/* third row */}
-					<div className="col-span-2 h-100 d-flex flex-column">
+					<div className="col-span-2 h-100 d-flex flex-column ">
 						<ChatBox socket={socket} roomCode={roomCode} playerName={localPlayer?.name} />
 					</div>
 					<div className="d-flex flex-col justify-center items-center">
@@ -632,18 +619,18 @@ const GameBoardGrid = () => {
 								</Button>
 							</li> */}
 							<li>
-								<Button disabled={enablePowerupsButtonState[1] === 0} onClick={handleTrueVisionPowerup} title="See the last played cards' true values">
-									True Vision : {enablePowerupsButtonState[1]}
+								<Button disabled={enablePowerupsButtonState[0] === 0} onClick={handleTrueVisionPowerup} title="See the last played cards' true values">
+									True Vision : {enablePowerupsButtonState[0]}
 								</Button>
 							</li>
 							<li>
-								<Button disabled={enablePowerupsButtonState[2] === 0} onClick={handleCleansePowerup} title="Remove all preorders on you">
-									Cleanse : {enablePowerupsButtonState[2]}
+								<Button disabled={enablePowerupsButtonState[1] === 0} onClick={handleCleansePowerup} title="Remove all preorders on you">
+									Cleanse : {enablePowerupsButtonState[1]}
 								</Button>
 							</li>
 							<li>
-								<Button disabled={enablePowerupsButtonState[3] === 0} onClick={handleSkipPlayerPowerup} title="Skip the current player's turn">
-									Skip a player : {enablePowerupsButtonState[3]}
+								<Button disabled={enablePowerupsButtonState[2] === 0} onClick={handleSkipPlayerPowerup} title="Skip the current player's turn">
+									Skip a player : {enablePowerupsButtonState[2]}
 								</Button>
 							</li>
 						</ul>

@@ -22,7 +22,7 @@ const DroppableArea = ({id, items, style, customDroppableAreaLabel}) => {
 	};
 
 	return (
-		<div ref={setNodeRef} style={containerStyle}>
+		<div ref={setNodeRef} style={containerStyle} className="rounded-xl">
 			<SortableContext id={id} items={items} strategy={horizontalListSortingStrategy}>
 				{items.map((item, index) => (
 					<SortableItem key={`${id}-${item}`} id={item} title={item} index={index} containerId={id} totalCards={items.length} />

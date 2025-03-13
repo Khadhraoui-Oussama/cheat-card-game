@@ -137,15 +137,16 @@ const startRoomTimer = (roomCode, currentPlayerSocket) => {
 			clearInterval(intervalId);
 			roomTimers.delete(roomCode);
 
-			// Force turn end
 			const currentPlayer = onlineUsers[roomCode]?.find((p) => p.socketID === currentPlayerSocket);
 			if (currentPlayer) {
 				// Signal client to return cards
 				io.to(currentPlayerSocket).emit("turnTimedOut");
 
-				// Find and give turn to next player
+				// Find and give turn to next player, indicating no cards were played
 				const nextPlayer = findNextTurn(currentPlayerSocket, roomCode);
-				handleTurnChange(roomCode, nextPlayer.socketID, currentPlayer);
+				handleTurnChange(roomCode, nextPlayer.socketID, currentPlayer, false);
+
+				io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name}'s turn timed out without playing any cards!`);
 			}
 		}
 	}, 1000);
@@ -156,13 +157,13 @@ const startRoomTimer = (roomCode, currentPlayerSocket) => {
 	});
 };
 
-// Modify handleTurnChange function
-const handleTurnChange = (roomCode, nextPlayerSocket, currentPlayer) => {
+// Modify handleTurnChange function to include a hasPlayedCards parameter
+const handleTurnChange = (roomCode, nextPlayerSocket, currentPlayer, hasPlayedCards = true) => {
 	// Update turn
 	io.to(roomCode).emit("updateTurn", {
 		currentPlayer: nextPlayerSocket,
-		lastPlayedPlayer: currentPlayer?.socketID,
-		newTurnStatus: nextPlayerSocket === currentPlayer?.socketID ? false : true, // Only set true if it's actually a new player's turn
+		lastPlayedPlayer: hasPlayedCards ? currentPlayer?.socketID : null, // Only set lastPlayedPlayer if cards were played
+		newTurnStatus: nextPlayerSocket === currentPlayer?.socketID ? false : true,
 	});
 
 	// Start new timer for next player
@@ -254,7 +255,7 @@ io.on("connection", (socket) => {
 				preOrderInfo: {isPreordered: false, playerWhoPreordered: null},
 				issuedPreorderDetails: {hasIssuedPreorder: false, playerIssuedAgainstID: null},
 				score: 0,
-				powerups: {0: 0, 1: 0, 2: 0, 3: 0},
+				powerups: {0: 0, 1: 0, 2: 0},
 				hasTurn: player.isLeader,
 				isShielded: false,
 			});
@@ -703,13 +704,20 @@ io.on("connection", (socket) => {
 				break;
 
 			case "skipPlayer":
-				{
-					const currentTurnPlayer = onlineUsers[roomCode].find((p) => p.hasTurn)?.socketID;
-					if (targetPlayer && targetPlayer.socketID === currentTurnPlayer) {
-						const nextPlayer = findNextTurn(targetId, roomCode);
-						handleTurnChange(roomCode, nextPlayer.socketID, targetPlayer);
-						io.to(roomCode).emit("updateGameEventMessage", `${player.name} skipped ${targetPlayer.name}'s turn!`);
-					}
+				const currentTurnPlayer = onlineUsers[roomCode].find((p) => p.hasTurn)?.socketID;
+				if (targetPlayer && targetPlayer.socketID === currentTurnPlayer) {
+					const nextPlayer = findNextTurn(targetId, roomCode);
+					handleTurnChange(roomCode, nextPlayer.socketID, targetPlayer, false);
+
+					// Decrement powerup count since it was used successfully
+					player.powerups[3]--;
+					io.to(roomCode).emit("updateGameEventMessage", `${player.name} skipped ${targetPlayer.name}'s turn!`);
+
+					// Notify about powerup usage
+					io.to(userId).emit("powerupUsed", {type: "skipPlayer", powerupId: 3});
+				} else {
+					// Send error message only to the player who tried to use the powerup
+					io.to(userId).emit("updateGameEventMessage", `Can't skip ${targetPlayer.name}'s turn as they don't have the current turn!`);
 				}
 				break;
 

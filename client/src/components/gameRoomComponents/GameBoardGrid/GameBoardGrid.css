@@ -137,7 +137,7 @@ table {
 
 * {
     /* For debugging layout */
-    outline: black solid 1px;
+    /* outline: black solid 1px; */
 }
 
 .container1 {
@@ -151,7 +151,7 @@ table {
 }
 
 .container1>* {
-    outline: red solid 1px;
+    /* outline: red solid 1px; */
 }
 
 .interior {

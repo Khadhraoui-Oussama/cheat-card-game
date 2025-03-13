@@ -47,8 +47,8 @@ const ChatBox = ({socket, roomCode, playerName}) => {
 	};
 
 	return (
-		<div className="chat-box">
-			<div className="chat-messages" ref={chatContainerRef}>
+		<div className="d-flex justify-end chat-box">
+			<div className=" chat-messages" ref={chatContainerRef}>
 				{chatHistory.map((msg, index) => (
 					<div key={index} className={`message ${msg.isSystemMessage ? "system-message" : ""}`}>
 						{!msg.isSystemMessage && <span className="player-name">{msg.playerName}: </span>}
