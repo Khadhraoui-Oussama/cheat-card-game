@@ -25,6 +25,7 @@ import QuitGameModal from "../../QuitGameModal/QuitGameModal";
 import DisconnectModal from "../../DisconnectModal/DisconnectModal";
 import "./themes.css";
 import SettingsModal from "../../SettingsModal/SettingsModal";
+import GameOverModal from "../GameOverModal/GameOverModal";
 
 const GameBoardGrid = () => {
 	/** PREVIOUS GAMEBOARD LOGIC HERE  **/
@@ -110,6 +111,7 @@ const GameBoardGrid = () => {
 	// Add state for animation
 	const [showPowerupAnimation, setShowPowerupAnimation] = useState(false);
 	const [powerupAnimationId, setPowerupAnimationId] = useState(null);
+	const [powerupAnimationName, setPowerupAnimationName] = useState("");
 	const [lastPowerupReceiver, setLastPowerupReceiver] = useState(null);
 	const [showCardsReveal, setShowCardsReveal] = useState(false);
 	const [revealedCards, setRevealedCards] = useState({cards: [], playerName: ""});
@@ -117,9 +119,11 @@ const GameBoardGrid = () => {
 	// Add gameOver state
 	const [gameOver, setGameOver] = useState(false);
 	const [showLastCardModal, setShowLastCardModal] = useState(false);
-
+	const [winner, setWinner] = useState(null);
+	const [orderedRestOfPlayersForGamOver, setOrderedRestOfPlayersForGameOver] = useState([]);
 	const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 	const [disconnectedPlayer, setDisconnectedPlayer] = useState(null);
+	const [showGameOverModal, setShowGameOverModal] = useState(false);
 
 	useEffect(() => {
 		if (!socket.connected) {
@@ -172,12 +176,28 @@ const GameBoardGrid = () => {
 				setLastPlayedPlayer(data.lastPlayedPlayer);
 			}
 		});
-		socket.on("gameOver", (winner) => {
-			// console.log("Game Over, Winner:", winner);
+		socket.on("gameOver", (data) => {
+			const {winner, players} = data;
+
+			// Set winner
+			setWinner(winner);
+
+			// Sort and set other players
+			const otherPlayers = players.filter((player) => player.socketID !== winner.socketID).sort((a, b) => a.cardsLeft - b.cardsLeft);
+
+			setOrderedRestOfPlayersForGameOver(otherPlayers);
 			setTimeLeft(0);
 			setGameOver(true);
+			setShowGameOverModal(true); // Make sure this is set to true
 			setEventMessage(`Game Over! Winner is ${winner.name}`);
+
+			console.log("Game Over Data:", {
+				winner,
+				orderedPlayers: otherPlayers,
+				showModal: true,
+			});
 		});
+
 		socket.on("receiveCards", (player) => {
 			//console.log("Received my cards:", player.cards); // Log the received cards
 			// Extract the array from the playerCards property
@@ -204,8 +224,15 @@ const GameBoardGrid = () => {
 		});
 		// Update the playPowerupDice socket handler
 		socket.on("playPowerupDice", (data) => {
-			//console.log("Powerup dice data:", data);
+			console.log("Powerup received data:", data);
 			setPowerupAnimationId(data.powerUpID);
+			if (data.powerUpID == 0) {
+				setPowerupAnimationName("True Vision");
+			} else if (data.powerUpID == 1) {
+				setPowerupAnimationName("Cleanse");
+			} else if (data.powerUpID == 2) {
+				setPowerupAnimationName("Skip Player");
+			}
 			setLastPowerupReceiver(data.accuserName);
 			setShowPowerupAnimation(true);
 
@@ -304,8 +331,14 @@ const GameBoardGrid = () => {
 		if (yourCards.length === 0 && cardsToPlay.length === 1) {
 			// Get card value for the final play
 			const selectElement = document.getElementById("newSelectedCardToPlay");
-			const cardValueTold = selectElement?.value || null;
-
+			let lastCardValue;
+			if (isNewTurn) {
+				lastCardValue = selectElement?.value;
+			} else {
+				lastCardValue = null;
+			}
+			console.log("****last cardValueTOld", lastCardValue);
+			let cardValueTold = lastCardValue;
 			socket.emit("makeMove", {
 				roomCode,
 				socketID: socket.id,
@@ -406,7 +439,7 @@ const GameBoardGrid = () => {
 	useEffect(() => {
 		socket.on("revealCards", ({cards, playerName}) => {
 			setEventMessage(`${playerName}'s cards were: ${cards.join(", ")}`);
-			setRevealedCards({cards, playerName});
+			setRevealedCards({cards: cards, playerName: playerName});
 			setShowCardsReveal(true);
 		});
 
@@ -443,7 +476,13 @@ const GameBoardGrid = () => {
 				setEventMessage("Can't skip this player's turn as they don't have the current turn!");
 			}
 		} else if (currentPowerupAction === "trueVision") {
-			// ... existing trueVision logic ...
+			socket.emit("usePowerup", {
+				type: "trueVision",
+				powerupId: 0,
+				roomCode,
+				userId: socket.id,
+				targetId: selectedPlayer.socketID,
+			});
 		}
 		setShowPlayerSelection(false);
 		setCurrentPowerupAction(null);
@@ -590,20 +629,29 @@ const GameBoardGrid = () => {
 							<div className="d-flex justify-center items-center gap-2 p-2 mb-2 bg-amber-200 text-blue-950">
 								<label htmlFor="newSelectedCardToPlay">Ech Habetet : </label>
 								<select id="newSelectedCardToPlay">
-									{["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"].map((card) => (
+									{["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"].map((card) => (
 										<option key={card} value={card}>
-											{card}
+											{(() => {
+												switch (card) {
+													case "A":
+														return "Ace";
+													case "J":
+														return "Jack";
+													case "Q":
+														return "Queen";
+													case "K":
+														return "King";
+													default:
+														return card;
+												}
+											})()}
 										</option>
 									))}
 								</select>
 							</div>
 						) : null}
 						<div className="d-flex justify-center items-center gap-2">
-							<Button
-								variant="success"
-								disabled={!localPlayerHasTurn || cardsToPlay.length === 0}
-								onClick={handleConfirmTurn} // Remove the parameter
-							>
+							<Button variant="success" disabled={!localPlayerHasTurn || cardsToPlay.length === 0} onClick={handleConfirmTurn}>
 								Confirm
 							</Button>
 							<Button variant="danger" disabled={cardsToPlay.length === 0} onClick={handleCancelTurn}>
@@ -644,7 +692,7 @@ const GameBoardGrid = () => {
 				powerUpID={powerupAnimationId}
 				onAnimationComplete={() => {
 					setShowPowerupAnimation(false);
-					setEventMessage(`Powerup granted! to ${lastPowerupReceiver}`);
+					setEventMessage(`Powerup ${powerupAnimationName} granted! to ${lastPowerupReceiver}`);
 				}}
 			/>
 			<PlayerSelectionModal show={showPlayerSelection} onHide={() => setShowPlayerSelection(false)} players={otherPlayers} onSelect={handlePlayerSelect} actionType={currentPowerupAction} />
@@ -652,6 +700,7 @@ const GameBoardGrid = () => {
 			<QuitGameModal show={showQuitModal} onHide={() => setShowQuitModal(false)} onConfirm={handleConfirmQuit} />
 			<DisconnectModal show={showDisconnectModal} playerName={disconnectedPlayer?.name} />
 			<SettingsModal show={showSettings} onHide={() => setShowSettings(false)} currentTheme={theme} onThemeChange={handleThemeChange} />
+			<GameOverModal show={showGameOverModal} onHide={() => setShowGameOverModal(false)} winner={winner} otherPlayers={orderedRestOfPlayersForGamOver} />
 		</DndContext>
 	);
 };

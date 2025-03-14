@@ -5,9 +5,11 @@ import {SocketContext} from "../contexts/SocketContext";
 import {PlayerContext} from "../contexts/PlayerContext";
 import PlayerCardHolder from "../components/PlayerCardHolder";
 import PlayerCard from "../components/PlayerCard";
+import {GameContext} from "../contexts/GameContext";
 const GameWaitingArea = () => {
 	const {socket, roomCode, setRoomCode} = useContext(SocketContext);
 	const {player, setPlayer} = useContext(PlayerContext);
+	const {gameOptions, setGameOptions} = useContext(GameContext);
 	const [userList, setUserList] = useState([]);
 	const navigate = useNavigate();
 
@@ -30,18 +32,19 @@ const GameWaitingArea = () => {
 					socketID: socket.id,
 					room: roomCode,
 					isLeader: player.isLeader,
+					preorderEnabled: gameOptions.preorder,
 				};
 				socket.emit("joinRoom", [roomCode, socket.id, playerNewObj]);
 			}
 		});
 
-		socket.on("updateUserList", async (updatedUserList) => {
+		socket.on("updateUserList", (updatedUserList) => {
 			//console.log("Updated user list received:", updatedUserList);
 			//makes sure that a leader is always assigned if not present at first
 			setUserList(updatedUserList);
 		});
-		socket.on("updateLocalPlayer", (newPlayer) => {
-			setPlayer((prev) => ({...prev, isLeader: newPlayer.isLeader}));
+		socket.on("updateLocalPlayer", (locaPlayer) => {
+			setPlayer(locaPlayer);
 		});
 
 		socket.on("navigateToGameRoomR", (roomCode) => {
@@ -50,18 +53,12 @@ const GameWaitingArea = () => {
 
 		return () => {
 			socket.off("connect");
+			socket.off("updateLocalPlayer");
 			socket.off("updateUserList");
 			socket.off("navigateToGameRoomR");
 		};
 	}, [socket, player, roomCode, setRoomCode]);
 
-	// useEffect(() => {
-	// 	socket.on("updatePlayerLeaderStatus", (newStatus) => {
-	// 		setPlayer({...player, isLeader: newStatus});
-	// 	});
-	// }, [userList]);
-
-	//this bit of code is similar to the above in the first udeEffect , why is it needed ??
 	useEffect(() => {
 		if (socket.connected && roomCode) {
 			const playerNewObj = {
@@ -70,6 +67,7 @@ const GameWaitingArea = () => {
 				socketID: socket.id,
 				room: roomCode,
 				isLeader: player.isLeader,
+				preorderEnabled: gameOptions.preorder,
 			};
 			socket.emit("joinRoom", [roomCode, socket.id, playerNewObj]);
 		}

@@ -4,22 +4,24 @@ import "./PowerupAnimation.css";
 const PowerupAnimation = ({isVisible, powerUpID, onAnimationComplete}) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const powerups = ["True Vision", "Cleanse", "Skip Another's Turn"];
+	//true vision :0, cleanse: 1, skip another's turn: 2
+	const finalPowerup = powerups[powerUpID];
 
 	useEffect(() => {
 		if (isVisible) {
 			const animationDuration = 1000; // 1 second
-			const steps = 15; // Number of "spins" before landing
-			const intervalTime = animationDuration / steps;
+			const totalSteps = 6;
+			const intervalTime = animationDuration / totalSteps;
 
 			let step = 0;
-			const interval = setInterval(() => {
+			const interval = setInterval(async () => {
 				setCurrentIndex((prev) => (prev + 1) % powerups.length);
 				step++;
 
-				if (step === steps) {
+				if (step === totalSteps) {
 					clearInterval(interval);
-					setCurrentIndex(powerUpID);
-					setTimeout(onAnimationComplete, 500);
+					setCurrentIndex(powerUpID); // Ensure final selection
+					setTimeout(onAnimationComplete, 1000);
 				}
 			}, intervalTime);
 

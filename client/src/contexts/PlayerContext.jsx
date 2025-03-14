@@ -1,15 +1,15 @@
-import { useState, createContext } from "react";
+import {useState, createContext} from "react";
 import validator from "validator";
 
 export const PlayerContext = createContext();
 
-export const PlayerContextProvider = ({ children }) => {
+export const PlayerContextProvider = ({children}) => {
 	const [player, setPlayer] = useState({
 		playerSocket: null,
 		name: "",
 		gender: "male",
 		avatar: "",
-		isLeader: true,
+		isLeader: false,
 	});
 	const [isCreateGame, setIsCreateGame] = useState(null);
 	const [selectedAvatarPath, setSelectedAvatarPath] = useState("");

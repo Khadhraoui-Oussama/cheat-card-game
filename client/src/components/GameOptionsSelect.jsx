@@ -8,33 +8,36 @@ const GameOptionsSelect = () => {
 	const [isPasswordVisible, setIsPassowrdVisible] = useState(false);
 	//const {} = useContext(GameContext);
 	const {setIsOpen, player, setPlayer} = useContext(PlayerContext);
+	const {gameOptions, setGameOptions} = useContext(GameContext);
 
 	return (
-		<Stack className="popup-container">
-			<Stack className="popup">
+		<Stack className="popup-container ">
+			<Stack className="popup p-2" gap={2}>
 				<h3>Select game options</h3>
 				<Form>
 					<Stack>
 						<Col>
-							<Form.Check type="checkbox" label="Preorder" />
-							<Form.Check type="checkbox" label="Power-Ups" />
+							<Form.Check
+								type="checkbox"
+								label="Allow Preorders"
+								checked={gameOptions.preorder}
+								onChange={() =>
+									setGameOptions((prev) => ({
+										...prev,
+										preorder: !prev.preorder,
+									}))
+								}
+							/>
+							{/* <Form.Check type="checkbox" label="Power-Ups" /> */}
 							<Stack direction="horizontal" gap={2}>
 								<FormLabel>Cards Suit</FormLabel>
 								<FormSelect>
 									<option>Classic</option>
 								</FormSelect>
 							</Stack>
-							<FormLabel>More suits coming soon !!!</FormLabel>
-							<Form.Check type="checkbox" label="Enable Password" />
-							<Stack direction="horizontal" gap={2}>
-								<Form.Control type={isPasswordVisible ? "text" : "password"} placeholder="game room password" />
+							<FormLabel className="pt-2">More suits coming soon !!!</FormLabel>
 
-								<Button className="bg-warning d-flex " onClick={() => setIsPassowrdVisible((prev) => !prev)}>
-									{isPasswordVisible && <img src="/password_icons/eye-slash-solid.png" width={25} height={20} />}
-									{!isPasswordVisible && <img src="/password_icons/eye-solid.png" height={20} width={25} />}
-								</Button>
-							</Stack>
-							<Stack direction="horizontal">
+							<Stack direction="horizontal" className="d-flex justify-center" gap={2}>
 								<Button onClick={() => setIsOpen(false)}>Cancel</Button>
 								<Link
 									to="/wa/"
@@ -43,6 +46,8 @@ const GameOptionsSelect = () => {
 									<Button
 										onClick={() => {
 											setIsOpen(false);
+
+											console.log("Player before starting :", player);
 										}}>
 										Play Now
 									</Button>

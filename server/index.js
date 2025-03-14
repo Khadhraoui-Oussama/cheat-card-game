@@ -11,6 +11,7 @@ import playerRouter from "./Routes/playerRoute.js";
 import gameStateRouter from "./Routes/gameStateRoute.js";
 import gameRoomRouter from "./Routes/gameRoomRoute.js";
 import gameConfigurationRouter from "./Routes/gameConfigurationRoute.js";
+import {Console} from "node:console";
 
 // Configure env variables
 dotenv.config();
@@ -191,6 +192,7 @@ io.on("connection", (socket) => {
 			name: dataArray[2].name,
 			avatar: dataArray[2].avatar,
 			isLeader: dataArray[2].isLeader,
+			preorderEnabled: dataArray[2].preorderEnabled,
 		};
 		console.log("delete me later", dataArray[1]);
 		if (!onlineUsers[dataArray[0]]) {
@@ -199,9 +201,12 @@ io.on("connection", (socket) => {
 		// Add the player to the room array
 		onlineUsers[dataArray[0]].push(newPlayer);
 
-		// Check and assign leader if needed
-		assignNewLeader(dataArray[0]);
+		// // Check and assign leader if needed
+		const roomHasLeader = onlineUsers[dataArray[0]].some((player) => player.isLeader);
 
+		if (!roomHasLeader) {
+			assignNewLeader(dataArray[0]);
+		}
 		// Notify all users in the room of the updated user list
 		io.to(dataArray[0]).emit("updateUserList", onlineUsers[dataArray[0]]);
 		console.log("Players Connected rn :", onlineUsers);
@@ -298,12 +303,22 @@ io.on("connection", (socket) => {
 		try {
 			// Find the current player
 			const currentPlayer = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
+			console.log("\n******cardvalueTold : ", cardValueTold);
+			currentPlayer.cards = currentPlayer.cards.filter((card) => !cardsPlayedArray.includes(card));
+
+			if (!isNewTurn) {
+				cardValueTold = lastMovePlayedInRoom[roomCode].cardValueTold;
+			}
 
 			if (isFinalCard) {
 				const finalCard = cardsPlayedArray[0];
 				const actualCardValue = finalCard.slice(0, -1);
-				const isJoker = finalCard === "1J" || finalCard === "2J";
-
+				// const isJoker = finalCard === "1J" || finalCard === "2J";
+				onlineUsers[roomCode]?.forEach((player) => {
+					if (player.socketID === socketID) {
+						player.cards = player.cards.filter((card) => !cardsPlayedArray.includes(card));
+					}
+				});
 				// Send last card info to all clients
 				io.to(roomCode).emit("lastCardPresented", {
 					playerName: currentPlayer.name,
@@ -311,9 +326,13 @@ io.on("connection", (socket) => {
 					cardValueClaimed: cardValueTold,
 					isFinalCard: true,
 				});
+				console.log("actualCardValue : ", actualCardValue, " cardValueTold : ", cardValueTold);
+				//cardValueTold !== "1" && cardValueTold!=="2" is because when playing jokers :"1J" and "2J" as for other cards , it is normal
 
-				if (actualCardValue !== cardValueTold && !isJoker) {
+				// actualcardvalue is the card coming with the signal
+				if (cardValueTold !== actualCardValue && actualCardValue !== "1" && actualCardValue !== "2") {
 					// Player lied about their final card - they must take all cards
+					console.log("I AM HERERERERERER LIEED");
 					currentPlayer.cards = [...currentPlayer.cards, ...pileOfCardsInEachRoom[roomCode]];
 					pileOfCardsInEachRoom[roomCode] = [];
 
@@ -321,16 +340,46 @@ io.on("connection", (socket) => {
 					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} lied about their final card and must take all cards from the pile then play again!`);
 
 					io.to(currentPlayer.socketID).emit("updateLocalPlayer", currentPlayer);
+					return;
 				} else {
-					// Player won truthfully!
-					io.to(roomCode).emit("gameOver", currentPlayer);
-					io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} has won the game by playing their final card truthfully!`);
+					const {winnerPlayerObject} = checkWinner(roomCode);
+					if (winnerPlayerObject) {
+						if (roomTimers.has(roomCode)) {
+							clearInterval(roomTimers.get(roomCode).intervalId);
+							roomTimers.delete(roomCode);
+						}
+						if (roomCode in pileOfCardsInEachRoom) {
+							delete pileOfCardsInEachRoom[roomCode];
+						}
+						if (roomCode in lastMovePlayedInRoom) {
+							delete lastMovePlayedInRoom[roomCode];
+						}
+						const playersData = {
+							winner: {
+								socketID: winnerPlayerObject.socketID,
+								name: winnerPlayerObject.name,
+								avatar: winnerPlayerObject.avatar,
+								cardsLeft: 0,
+								isWinner: true,
+							},
+							players: onlineUsers[roomCode].map((player) => ({
+								socketID: player.socketID,
+								name: player.name,
+								avatar: player.avatar,
+								cardsLeft: player.cards.length,
+								isWinner: player.socketID === winnerPlayerObject.socketID,
+							})),
+						};
+						io.to(roomCode).emit("gameOver", playersData);
+						io.to(roomCode).emit("updateTimer", 0);
+						io.to(roomCode).emit("updateGameEventMessage", `${currentPlayer.name} has won the game by playing their final card truthfully!`);
+					}
+					return;
 				}
-				return;
 			}
 
 			// Normal turn logic
-			currentPlayer.cards = currentPlayer.cards.filter((card) => !cardsPlayedArray.includes(card));
+			//	currentPlayer.cards = currentPlayer.cards.filter((card) => !cardsPlayedArray.includes(card));
 
 			// Check if player is trying to play all cards except one
 			if (currentPlayer.cards.length === 0) {
@@ -338,10 +387,6 @@ io.on("connection", (socket) => {
 				return;
 			}
 
-			// ... rest of your existing makeMove logic ...
-			if (!isNewTurn) {
-				cardValueTold = lastMovePlayedInRoom[roomCode].cardValueTold;
-			}
 			console.log("makeMove signal received from client with roomCode:", roomCode, " with cardsPlayedArray : ", cardsPlayedArray, " cardValueTold : ", cardValueTold);
 			onlineUsers[roomCode]?.forEach((player) => {
 				//remove the cards played from the player's hand
@@ -366,7 +411,19 @@ io.on("connection", (socket) => {
 			const {winnerBOOL, winnerPlayerObject} = checkWinner(roomCode);
 			// If there is a winner, send the winner to the client
 			if (winnerBOOL) {
-				io.to(roomCode).emit("gameOver", winnerPlayerObject);
+				if (roomTimers.has(roomCode)) {
+					clearInterval(roomTimers.get(roomCode).intervalId);
+					roomTimers.delete(roomCode);
+				}
+				if (pileOfCardsInEachRoom.has(roomCode)) {
+					pileOfCardsInEachRoom.delete(roomCode);
+				}
+				if (lastMovePlayedInRoom.has(roomCode)) {
+					lastMovePlayedInRoom.delete(roomCode);
+				}
+				console.log("Game Over, Winner:", winner);
+				io.to(roomCode).emit("updateTimer", 0);
+				io.to(roomCode).emit("gameOver", {winnerID: winnerPlayerObject.socketID, allUsers: onlineUsers[roomCode]});
 				io.to(roomCode).emit("updateGameEventMessage", `GAME OVER , ${winnerPlayerObject.name} WON THE GAME`);
 			} else {
 				//NEED TO CHECK IF ANY PLAYER HAS PREORDERED THE PLAYER WHO IS PLAYING THEIR TURN
@@ -435,7 +492,9 @@ io.on("connection", (socket) => {
 				accused.cards = [...accused.cards, ...pileOfCardsInEachRoom[roomCode]];
 				pileOfCardsInEachRoom[roomCode] = [];
 				//grant a powerup to the accuser
-				const powerUpID = Math.floor(Math.random() * 4);
+				//ONLY 3 POWERUPS FOR NOW
+				const NUMBER_OF_POWERUPS = 3;
+				const powerUpID = Math.floor(Math.random() * NUMBER_OF_POWERUPS);
 				accuser.powerups[powerUpID] += 1;
 				onlineUsers[roomCode]?.forEach((player) => {
 					if (player.socketID === accuser.socketID) player = accuser;
@@ -485,6 +544,12 @@ io.on("connection", (socket) => {
 			}
 			const playerToBePreordered = onlineUsers[roomCode]?.find((player) => player.socketID === accusedPlayerID);
 			const playerWhoPreordered = onlineUsers[roomCode]?.find((player) => player.socketID === socketID);
+			const roomHasPreorderEnabled = playerToBePreordered.preorderEnabled;
+
+			//in case the the frontend check gets bypassed
+			if (!roomHasPreorderEnabled) {
+				return;
+			}
 			if (playerToBePreordered.preOrderInfo.isPreordered) {
 				const aux = onlineUsers[roomCode]?.find((p) => p.socketID === playerToBePreordered.preOrderInfo.playerWhoPreordered);
 				console.log(`player ${playerToBePreordered.socketID} is already preordered by ${aux.name} in room : ${roomCode}`);
@@ -694,10 +759,14 @@ io.on("connection", (socket) => {
 			case "trueVision":
 				if (targetPlayer) {
 					// Send cards only to the player who used the powerup
+					//don't send all cards , rather send a precentage of the cards
+					const PERCENTAGE_OF_CARDS_TO_SEE = 0.3;
+					const cardsToSend = Math.max(Math.floor(targetPlayer.cards.length * PERCENTAGE_OF_CARDS_TO_SEE), 1);
 					io.to(userId).emit("revealCards", {
-						cards: targetPlayer.cards,
+						cards: targetPlayer.cards.slice(0, cardsToSend),
 						playerName: targetPlayer.name,
 					});
+					console.log("True Vision used on:", targetPlayer.name);
 					// Notify room about powerup use
 					io.to(roomCode).emit("updateGameEventMessage", `${player.name} used True Vision on ${targetPlayer.name}!`);
 				}
@@ -782,30 +851,13 @@ io.on("connection", (socket) => {
 		io.to(roomCode).emit("chatMessage", messageData);
 	};
 
-	// Use sendSystemMessage in your existing game events
 	socket.on("startGame", ({roomCode}) => {
-		// ...existing code...
 		sendSystemMessage(roomCode, "Game has started!");
 	});
 
 	socket.on("makeMove", ({roomCode, socketID}) => {
-		// ...existing code...
 		const player = onlineUsers[roomCode].find((u) => u.socketID === socketID);
 		sendSystemMessage(roomCode, `${player.name} played their cards.`);
-	});
-
-	// Inside the io.on("connection") block, update the gameOver handler:
-	socket.on("gameOver", (winner) => {
-		// Clear any existing timer for this room
-		if (roomTimers.has(roomCode)) {
-			clearInterval(roomTimers.get(roomCode).intervalId);
-			roomTimers.delete(roomCode);
-		}
-
-		console.log("Game Over, Winner:", winner);
-		io.to(roomCode).emit("gameOver", winner);
-		io.to(roomCode).emit("updateTimer", 0);
-		io.to(roomCode).emit("updateGameEventMessage", `Game Over! Winner is ${winner.name}`);
 	});
 
 	// Inside your io.on("connection") block

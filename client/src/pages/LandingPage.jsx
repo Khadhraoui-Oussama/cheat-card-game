@@ -17,7 +17,7 @@ const LandingPage = () => {
 	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
-		setPlayer({playerSocket: socket, name: "", gender: "male", avatar: "", isLeader: true});
+		setPlayer({playerSocket: socket, name: "", gender: "male", avatar: "", isLeader: false});
 		setRoomCode();
 	}, []); //ON MOUNT SET THE PLAYER OBJECT TO THE ABOVE , WHAT HAPPENS WHEN THE PLAYER DISCONNECTS AND COMES BACK PROBABLY NEED TO ACCESS INTERNAL SOTRAGE
 

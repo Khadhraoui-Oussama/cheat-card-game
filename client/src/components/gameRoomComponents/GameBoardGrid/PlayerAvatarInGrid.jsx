@@ -2,6 +2,7 @@ import {useContext, useEffect, useState} from "react";
 import {Button} from "react-bootstrap";
 import {SocketContext} from "../../../contexts/SocketContext";
 import {PlayerContext} from "../../../contexts/PlayerContext";
+import {GameContext} from "../../../contexts/GameContext";
 
 const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastPlayed}) => {
 	const {socket, roomCode} = useContext(SocketContext);
@@ -101,6 +102,7 @@ const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastP
 	} else {
 		bgColor = "bg-blue-400";
 	}
+	const {gameOptions} = useContext(GameContext);
 	return (
 		<div
 			className={`d-flex flex-column justify-content-center items-center p-2 rounded 
@@ -116,7 +118,9 @@ const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastP
 						{isBeingAccused ? "Being Accused" : globallyAccused ? "Already Accused" : accuseButtonMsg}
 					</Button>
 				)}
-				{localPlayer.hasTurn && (
+				{/* localPlayer.preorderEnabled is counterintuitive because we are storing the gameoptions state inside of each player ,but for now it will suffice */}
+				{/* locaPlayer.preorderEnabled == gameOptions.preorder */}
+				{gameOptions.preorder && localPlayer.hasTurn && (
 					<Button variant="warning" size="sm" disabled={playerObject?.preOrderInfo?.isPreordered} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
 						Preorder
 					</Button>

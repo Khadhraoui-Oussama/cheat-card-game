@@ -10,7 +10,7 @@ const LastCardModal = ({show, onHide, lastCardInfo}) => {
 				<Modal.Title>{lastCardInfo.playerName}'s Final Card</Modal.Title>
 			</Modal.Header>
 			<Modal.Body className="text-center">
-				<p>The last card was:</p>
+				<p>The last played card was:</p>
 				<img src={`../../../public/classic/${lastCardInfo.card}.svg`} alt={`${lastCardInfo.card}`} style={{width: "150px"}} />
 			</Modal.Body>
 			<Modal.Footer>
