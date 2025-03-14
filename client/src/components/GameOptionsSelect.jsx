@@ -47,7 +47,7 @@ const GameOptionsSelect = () => {
 										onClick={() => {
 											setIsOpen(false);
 
-											console.log("Player before starting :", player);
+											// console.log("Player before starting :", player);
 										}}>
 										Play Now
 									</Button>
