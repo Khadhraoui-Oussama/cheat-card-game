@@ -4,9 +4,9 @@
 
 This is a hobby porject ,where I have built a multiplayer card game "cheat" in order to improve my skills in full-stack development and problem solving. My goal for this project was to create an interactive real-time online multiplayer version of the popular game "cheat" with slightly modified game rules.
 
-Please note that the code may not follow best practices and the way it's written may seem counterintuitive at best and wrong at worst, please keep in mind this is a hobby project is solely intended for learning purposes.  
+Please note that the code may not follow best practices and the way it's written may seem counterintuitive at best and wrong at worst, please keep in mind this is a hobby project is solely intended for learning purposes.
 
-the game can be played here : https://superb-kulfi-fa8c06.netlify.app/ (A domain name upgrade is being considered.)
+the game can be played here : https://cheat-card-game.netlify.app (A domain name upgrade is being considered.)
 
 ## Technical Details
 
