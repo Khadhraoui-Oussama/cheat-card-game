@@ -138,14 +138,14 @@ const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastP
 			{(canShowAccuse || canShowPreorder) && (
 				<div className="pod-actions">
 					{canShowAccuse && (
-						<Button variant="danger" size="sm" disabled={playerObject.isPreordered || localPlayer.socketID === playerObject.socketID || isBeingAccused || hasBeenAccused || globallyAccused} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "accuse")}>
+						<Button className="pod-action-button accuse-button" variant="danger" size="sm" disabled={playerObject.isPreordered || localPlayer.socketID === playerObject.socketID || isBeingAccused || hasBeenAccused || globallyAccused} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "accuse")}>
 							{isBeingAccused ? "Being Accused" : globallyAccused ? "Already Accused" : accuseButtonMsg}
 						</Button>
 					)}
 					{/* localPlayer.preorderEnabled is counterintuitive because we are storing the gameoptions state inside of each player ,but for now it will suffice */}
 					{/* locaPlayer.preorderEnabled == gameOptions.preorder */}
 					{canShowPreorder && (
-						<Button variant="warning" size="sm" disabled={targetIsClaimed || hasPreorderOut} title={preorderTitle} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
+						<Button className="pod-action-button preorder-button" variant="warning" size="sm" disabled={targetIsClaimed || hasPreorderOut} title={preorderTitle} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
 							{preorderLabel}
 						</Button>
 					)}

@@ -527,6 +527,9 @@ io.on("connection", (socket) => {
 
 		// Notify all users in the room of the updated user list
 		io.to(roomCode).emit("updateUserList", onlineUsers[roomCode]);
+		// Also send the roster directly to the joining socket so it cannot miss
+		// the room update while the waiting area is mounting.
+		socket.emit("updateUserList", onlineUsers[roomCode]);
 	});
 
 	/*
@@ -565,7 +568,7 @@ io.on("connection", (socket) => {
 
 	socket.on("getUsersInRoom", (roomCode) => {
 		console.log("received getUsersInRoom signal from client with roomCode : ", roomCode);
-		io.to(roomCode).emit("getUsersInRoomR", onlineUsers[roomCode]);
+		socket.emit("getUsersInRoomR", onlineUsers[roomCode] ?? []);
 	});
 
 	socket.on("navigateToGameRoom", (roomCode) => {
@@ -577,6 +580,10 @@ io.on("connection", (socket) => {
 		// empty, so it is the free-seat count - not the size - that decides a join.
 		// Only the socket that asked - io.emit told every connected client.
 		socket.emit("getRoomSizeR", {
+			// "Nobody is sitting here" and "there is no such table" look identical
+			// by seat count - both have room - so the answer has to say which it
+			// is, or a mistyped code quietly opens a new room instead of joining.
+			exists: playersInRoom(roomCode).length > 0,
 			size: playersInRoom(roomCode).length,
 			openSeats: freeSeatCount(roomCode),
 			inProgress: Boolean(roomMeta.get(roomCode)?.gameStarted),

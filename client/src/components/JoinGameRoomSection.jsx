@@ -9,6 +9,7 @@ const JoinGameRoomSection = () => {
 	const {roomCode, setRoomCode, socket} = useContext(SocketContext);
 	const {player, setPlayer} = useContext(PlayerContext);
 	const [joinAlert, setJoinAlert] = useState(false);
+	const [noRoomAlert, setNoRoomAlert] = useState(false);
 	const [playerInfoMissingAlert, setPlayerInfoMissingAlert] = useState(false);
 	const [serverError, setServerError] = useState("");
 	const [isJoining, setIsJoining] = useState(false);
@@ -22,7 +23,6 @@ const JoinGameRoomSection = () => {
 		}
 		return () => {
 			joinCleanupRef.current?.();
-			socket.disconnect();
 		};
 	}, []);
 
@@ -32,6 +32,7 @@ const JoinGameRoomSection = () => {
 		if (roomCode && player.name.length > 2 && player.name.length < 21 && player.avatar.length > "/avatars/.svg".length) {
 			setPlayerInfoMissingAlert(false);
 			setServerError("");
+			setNoRoomAlert(false);
 			// min of avatar length
 
 			joinCleanupRef.current?.();
@@ -41,9 +42,22 @@ const JoinGameRoomSection = () => {
 				emit: "getRoomSize",
 				payload: roomCode,
 				response: "getRoomSizeR",
-				onReply: ({openSeats}) => {
+				onReply: ({exists, openSeats}) => {
 					joinCleanupRef.current = null;
 					setIsJoining(false);
+
+					/*
+						An unknown code used to sail straight through here: an empty
+						room and a room that was never there both have four seats
+						going spare, so the joiner was seated in a brand new room of
+						their own - which looks exactly like a successful join, while
+						the host sits alone in the real one. One wrong character in a
+						code full of lookalikes (l/I, O/0, -/_) was enough.
+					*/
+					if (!exists) {
+						setNoRoomAlert(true);
+						return;
+					}
 
 					// A game already running still has a seat to offer if somebody
 					// walked away from it, so it is the free-seat count - not the
@@ -89,6 +103,7 @@ const JoinGameRoomSection = () => {
 					}}
 					onChange={(e) => {
 						setRoomCode(e.target.value.trim());
+						setNoRoomAlert(false);
 						//working good checked with console.Log
 					}}
 					id="room-code"
@@ -100,6 +115,11 @@ const JoinGameRoomSection = () => {
 			{playerInfoMissingAlert && (
 				<Alert key="danger" variant="danger">
 					Some input fields are missing , please Make sure to enter a valid room code, select an avatar and choose a name between 3 and 20 characters
+				</Alert>
+			)}
+			{noRoomAlert && (
+				<Alert variant="danger">
+					No table is using the code <strong>{roomCode}</strong>. Codes are case sensitive — copy it from the host&apos;s screen rather than retyping it. To start your own table, use <strong>Create a new game</strong>.
 				</Alert>
 			)}
 			{joinAlert && (

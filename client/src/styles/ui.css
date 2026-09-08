@@ -968,6 +968,21 @@ label.option-row {
 	border-color: var(--crimson-2);
 }
 
+.mobile-chat-toggle {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	min-height: 38px;
+	padding: 0 0.75rem;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface-2);
+	color: var(--text);
+	font: 600 0.8rem var(--font-ui);
+	cursor: pointer;
+}
+
 .event-banner {
 	flex: 1;
 	min-width: 0;
@@ -1304,6 +1319,13 @@ label.option-row {
 	--bs-btn-padding-x: 0.7rem;
 	--bs-btn-padding-y: 0.22rem;
 	--bs-btn-font-size: 0.72rem;
+}
+
+.pod-action-button {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .pod-skeleton {
@@ -2103,13 +2125,64 @@ label.option-row {
 
 @media (max-width: 860px) {
 	.game-shell {
-		height: auto;
-		min-height: 100vh;
+		height: 100dvh;
+		min-height: 0;
+		overflow: hidden;
+	}
+	.game-topbar {
+		gap: 0.3rem;
+		padding: 0.3rem 0.45rem;
+		flex-wrap: wrap;
+		align-content: center;
+	}
+	.game-topbar .icon-btn {
+		width: 32px;
+		height: 32px;
+		border-radius: 9px;
+		font-size: 0.82rem;
+	}
+	.mobile-chat-toggle {
+		display: inline-flex;
+		min-height: 32px;
+		padding: 0 0.55rem;
+		border-radius: 9px;
+		font-size: 0.68rem;
+	}
+	.game-topbar .event-banner {
+		order: 2;
+		flex: 0 0 100%;
+		width: 100%;
+		align-items: flex-start;
+		padding: 0.24rem 0.5rem;
+		font-size: 0.5rem;
+		line-height: 1.15;
+		border-radius: 8px;
+	}
+	.game-topbar .event-banner .event-text {
+		white-space: normal;
 		overflow: visible;
+		text-overflow: clip;
+		overflow-wrap: anywhere;
+	}
+	.game-topbar .timer {
+		order: 1;
+		transform: scale(0.68);
+		transform-origin: center;
+		margin: 0 -0.35rem 0 auto;
+	}
+	.game-topbar .icon-btn.danger {
+		order: 1;
+		margin-left: 0;
+	}
+	.game-topbar:not(:has(.timer)) .icon-btn.danger {
+		margin-left: auto;
 	}
 	.game-main {
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-areas: "table" "powerups" "chat";
+		grid-template-columns: minmax(0, 1fr) 116px;
+		grid-template-areas: "table powerups";
+		gap: 0.3rem;
+		padding: 0.3rem 0.45rem;
+		overflow: hidden;
 	}
 	.game-main > .game-table {
 		grid-area: table;
@@ -2118,20 +2191,205 @@ label.option-row {
 		grid-area: powerups;
 	}
 	.game-main > .chat-panel {
-		grid-area: chat;
-		height: 320px;
+		position: fixed;
+		z-index: 30;
+		inset: 3.8rem 0.6rem 0.6rem auto;
+		width: min(360px, calc(100vw - 1.2rem));
+		height: auto;
+		visibility: hidden;
+		opacity: 0;
+		pointer-events: none;
+		transform: translateX(1rem);
+		transition: opacity var(--t), transform var(--t), visibility var(--t);
+		filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.42));
+	}
+	.game-main > .chat-panel .chat-box {
+		background: var(--surface-solid);
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		pointer-events: auto;
+	}
+	.game-main > .chat-panel .chat-input,
+	.game-main > .chat-panel .chat-input .form-control,
+	.game-main > .chat-panel .chat-input .btn {
+		position: relative;
+		z-index: 1;
+		pointer-events: auto;
+		touch-action: manipulation;
+	}
+	.game-main > .chat-panel.is-open {
+		visibility: visible;
+		opacity: 1;
+		pointer-events: auto;
+		transform: translateX(0);
 	}
 	.powerups {
-		flex-direction: row;
-		overflow-x: auto;
+		gap: 0.2rem;
+		padding: 0.3rem;
 	}
 	.powerup {
-		min-width: 150px;
+		padding: 0.3rem;
+		gap: 0.3rem;
+	}
+	:root {
+		--card-spread: 20px;
+		--card-w: 42px;
+	}
+	.powerup-name {
+		font-size: 0.62rem;
+	}
+	.powerup-alert {
+		display: none;
+	}
+	.game-table {
+		gap: 0.4rem;
+	}
+	.opponents-row {
+		gap: 0.35rem;
+		flex-wrap: nowrap;
+	}
+	.player-pod {
+		min-width: 0;
+		flex: 1 1 0;
+		padding: 0.25rem;
+	}
+	.pod-score {
+		font-size: 0.62rem;
+		padding: 0.08rem 0.35rem;
+	}
+	.pod-flag {
+		font-size: 0.5rem;
+		padding: 0.1rem 0.35rem;
+	}
+	.pod-actions {
+		width: 100%;
+		gap: 0.2rem;
+	}
+	.pod-action-button {
+		flex: 1 1 0;
+		width: 0;
+		padding: 0.2rem 0.25rem;
+		font-size: 0.59rem;
+		line-height: 1.15;
+	}
+	.pod-avatar {
+		width: 34px;
+		height: 34px;
+	}
+	.pod-avatar img {
+		width: 27px;
+		height: 27px;
+	}
+	.pod-name {
+		max-width: 100%;
+		font-size: 0.64rem;
+	}
+	.drop-zone-hint {
+		font-size: 0.68rem;
+		padding: 0 0.5rem;
+	}
+	.pile-idle {
+		font-size: 0.68rem;
+		text-align: center;
 	}
 	.table-center {
-		min-height: 230px;
+		min-height: 0;
+	}
+	.pile-idle img {
+		width: min(110px, 25vw);
+	}
+	.hand-zone {
+		gap: 0.2rem;
+		padding: 0.25rem 0.45rem;
+	}
+	.hand-zone .drop-zone {
+		min-height: 62px;
+	}
+	.hand-controls {
+		gap: 0.35rem;
+	}
+	.hand-controls .btn {
+		--bs-btn-padding-y: 0.25rem;
+		--bs-btn-padding-x: 0.6rem;
+		--bs-btn-font-size: 0.62rem;
+	}
+	.waiting-note {
+		font-size: 0.72rem;
 	}
 	.event-banner {
-		font-size: 0.82rem;
+		font-size: 0.58rem;
+	}
+	.chat-head {
+		font-size: 0.6rem;
+	}
+	.message {
+		font-size: 0.72rem;
+	}
+	.chat-empty {
+		font-size: 0.7rem;
+	}
+	.chat-input .form-control,
+	.chat-input .btn {
+		font-size: 0.72rem;
+	}
+	.away-banner {
+		gap: 0.35rem;
+		padding: 0.35rem 0.6rem;
+		font-size: 0.62rem;
+	}
+	.away-banner .away-spinner {
+		width: 12px;
+		height: 12px;
+		border-width: 1px;
+	}
+	.away-count {
+		padding: 0.06rem 0.35rem;
+		font-size: 0.58rem;
+	}
+	.seat-open-panel {
+		gap: 0.3rem;
+		max-width: calc(100% - 1rem);
+		padding: 0.5rem 0.65rem;
+	}
+	.seat-open-panel .seat-open-head {
+		gap: 0.3rem;
+		font-size: 0.68rem;
+	}
+	.seat-open-panel p {
+		font-size: 0.62rem;
+		line-height: 1.25;
+	}
+	.seat-open-panel .room-code {
+		font-size: 0.65rem;
+	}
+	.seat-open-panel .room-code code,
+	.seat-open-panel .copy-btn {
+		font-size: 0.62rem;
+	}
+	.connection-card h3 {
+		font-size: 0.95rem;
+	}
+	.connection-card p {
+		font-size: 0.72rem;
+	}
+}
+
+@media (max-width: 860px) and (orientation: landscape) {
+	.game-topbar {
+		padding-top: 0.3rem;
+		padding-bottom: 0.3rem;
+	}
+	.game-main {
+		padding-top: 0.3rem;
+		padding-bottom: 0.3rem;
+	}
+	.opponents-row {
+		max-height: 84px;
+	}
+	.table-center {
+		padding: 0.3rem;
+	}
+	.hand-zone .drop-zone {
+		min-height: 64px;
 	}
 }

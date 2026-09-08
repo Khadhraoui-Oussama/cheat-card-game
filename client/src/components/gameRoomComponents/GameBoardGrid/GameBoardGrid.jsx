@@ -67,7 +67,9 @@ const GameBoardGrid = () => {
 
 	// dnd-kit sensor setup
 	const mouseSensor = useSensor(MouseSensor);
-	const touchSensor = useSensor(TouchSensor);
+	const touchSensor = useSensor(TouchSensor, {
+		activationConstraint: {delay: 180, tolerance: 8},
+	});
 	const keyboardSensor = useSensor(KeyboardSensor, {
 		coordinateGetter: sortableKeyboardCoordinates,
 	});
@@ -132,6 +134,7 @@ const GameBoardGrid = () => {
 	const [isPlayersDataLoading, setIsPlayersDataLoading] = useState(true); // Add loading state for player avatar placeholders until their avatar loads
 
 	const [gameStarted, setGameStarted] = useState(false);
+	const [showChat, setShowChat] = useState(false);
 	const [localPlayerHasTurn, setLocalPlayerHasTurn] = useState(false);
 	const [currentTurnPlayer, setCurrentTurnPlayer] = useState(null);
 	const [currentCardValue, setCurrentCardValue] = useState(null);
@@ -169,7 +172,6 @@ const GameBoardGrid = () => {
 			setOtherPlayers(others);
 		};
 
-		socket.emit("getUsersInRoom", roomCode);
 		socket.on("getUsersInRoomR", (usersArray) => {
 			setUsersInRoom(usersArray);
 			setOpenSeats(openSeatsFrom(usersArray));
@@ -186,6 +188,7 @@ const GameBoardGrid = () => {
 			setOpenSeats(openSeatsFrom(updatedUserList));
 			getPlayerAndOthers(updatedUserList);
 		});
+		socket.emit("getUsersInRoom", roomCode);
 		socket.on("startGameR", (roomCode) => {
 			// console.log("Game started in room:", roomCode);
 			setGameStarted(true);
@@ -710,6 +713,9 @@ const GameBoardGrid = () => {
 					<button type="button" className="icon-btn" onClick={() => setShowSettings(true)} title="Settings" aria-label="Settings">
 						⚙
 					</button>
+					<button type="button" className="mobile-chat-toggle" onClick={() => setShowChat((isOpen) => !isOpen)} aria-expanded={showChat} aria-controls="mobile-chat-panel">
+						<span aria-hidden="true">▢</span> Chat
+					</button>
 					<span className="chip d-none d-md-inline-flex">
 						Room <strong style={{color: "var(--gold)"}}>{roomCode}</strong>
 					</span>
@@ -730,7 +736,7 @@ const GameBoardGrid = () => {
 
 				{/* ---- table ---- */}
 				<div className="game-main">
-					<aside className="chat-panel">
+					<aside id="mobile-chat-panel" className={`chat-panel${showChat ? " is-open" : ""}`}>
 						<ChatBox socket={socket} roomCode={roomCode} playerName={localPlayer?.name} />
 					</aside>
 

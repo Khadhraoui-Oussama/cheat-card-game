@@ -64,6 +64,11 @@ const GameWaitingArea = () => {
 				socket.emit("joinRoom", [roomCode, socket.id, playerNewObj]);
 			}
 		});
+		// The lobby may already have connected this shared socket before the
+		// waiting area mounts, so there may be no new connect event to handle.
+		if (socket.connected && !roomCode) {
+			setRoomCode(socket.id.substring(0, 7));
+		}
 
 		socket.on("updateUserList", (updatedUserList) => {
 			//console.log("Updated user list received:", updatedUserList);
