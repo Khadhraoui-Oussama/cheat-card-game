@@ -1,15 +1,18 @@
-import {Card, Placeholder, Spinner} from "react-bootstrap";
-
 const PlayerCardHolder = () => {
 	return (
-		<Card className="w-50 m-auto shadow-2xl" style={{height: "100%"}}>
-			<Spinner animation="border" role="img" className="m-auto pt-3">
-				<span className="visually-hidden">Loading Player Image...</span>
-			</Spinner>
-			<Placeholder as={Card.Title} animation="glow">
-				<Placeholder className="w-100 bg-info" />
-			</Placeholder>
-		</Card>
+		<div className="seat empty">
+			<div className="seat-avatar" aria-hidden="true">
+				<span style={{color: "var(--text-faint)", fontSize: "1.4rem"}}>?</span>
+			</div>
+			<div className="seat-empty-label">
+				Waiting
+				<span className="dots">
+					<span />
+					<span />
+					<span />
+				</span>
+			</div>
+		</div>
 	);
 };
 

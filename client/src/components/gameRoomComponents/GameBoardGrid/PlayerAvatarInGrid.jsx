@@ -1,11 +1,11 @@
 import {useContext, useEffect, useState} from "react";
 import {Button} from "react-bootstrap";
 import {SocketContext} from "../../../contexts/SocketContext";
-import {PlayerContext} from "../../../contexts/PlayerContext";
 import {GameContext} from "../../../contexts/GameContext";
 
-const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastPlayed}) => {
+const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastPlayed, roundInPlay, hasPreorderOut, preorder}) => {
 	const {socket, roomCode} = useContext(SocketContext);
+	const {gameOptions} = useContext(GameContext);
 	const [accuseButtonMsg, setAccuseButtonMsg] = useState("Accuse");
 	const [isBeingAccused, setIsBeingAccused] = useState(false);
 	const [hasBeenAccused, setHasBeenAccused] = useState(false);
@@ -94,38 +94,63 @@ const PlayerAvatarInGrid = ({playerObject, localPlayer, hasCurrentTurn, hasLastP
 	};
 
 	if (!playerObject) return null;
-	let bgColor;
-	if (hasCurrentTurn) {
-		bgColor = "bg-green-200";
-	} else if (isBeingAccused) {
-		bgColor = "bg-red-100";
-	} else {
-		bgColor = "bg-blue-400";
-	}
-	const {gameOptions} = useContext(GameContext);
+
+	// The chair is still at the table with its hand on it, but nobody is in it.
+	const isAway = playerObject.connected === false;
+	const isOpenSeat = Boolean(playerObject.awaitingReplacement);
+	const podState = [hasCurrentTurn ? "is-turn" : isBeingAccused ? "is-accused" : "", isAway ? "is-away" : ""].filter(Boolean).join(" ");
+	const canShowAccuse = hasLastPlayed && !hasCurrentTurn && !isAway;
+
+	/*
+		Preordering used to be something only the player holding the turn could
+		do. It is open to the whole table now - the claim is what matters, not
+		whose move it is - so the button is on every pod for the whole round.
+		Each player still gets exactly one claim, and each target can only be
+		claimed once, which is what the disabled states below say.
+	*/
+	const canShowPreorder = gameOptions.preorder && roundInPlay && !isAway;
+	const targetIsClaimed = Boolean(preorder?.isPreordered);
+	const claimedByMe = targetIsClaimed && preorder.playerWhoPreordered === localPlayer?.socketID;
+	const preorderLabel = claimedByMe ? "Preordered ✓" : targetIsClaimed ? "Claimed" : hasPreorderOut ? "Preorder used" : "Preorder";
+	const preorderTitle = claimedByMe
+		? `Your accusation fires the moment ${playerObject.name} plays.`
+		: targetIsClaimed
+		? `${playerObject.name} has already been preordered by somebody else.`
+		: hasPreorderOut
+		? "You already have a preorder out — it comes back once an accusation is resolved."
+		: `Accuse ${playerObject.name} automatically the moment they play, turn or no turn.`;
+
 	return (
-		<div
-			className={`d-flex flex-column justify-content-center items-center p-2 rounded 
-        	${bgColor}`}>
-			<div className="d-flex gap-1 justify-content-center items-center">
-				<img src={`/avatars/${playerObject.avatar?.replace("/avatars/", "")}`} width={50} />
-				<h6>{playerObject.name}</h6>
-				<h6>{playerObject.score}</h6>
+		<div className={`player-pod ${podState}`}>
+			{isOpenSeat && <span className="pod-flag warn">Seat open</span>}
+			{isAway && !isOpenSeat && <span className="pod-flag warn">Away</span>}
+			{!isAway && hasCurrentTurn && <span className="pod-flag">Playing</span>}
+			{!isAway && !hasCurrentTurn && hasLastPlayed && <span className="pod-flag alt">Last played</span>}
+
+			<div className="pod-avatar">
+				<img src={`/avatars/${playerObject.avatar?.replace("/avatars/", "")}`} alt="" />
 			</div>
-			<div className="gap-1">
-				{hasLastPlayed && !hasCurrentTurn && (
-					<Button variant="danger" size="sm" disabled={playerObject.isPreordered || localPlayer.socketID === playerObject.socketID || isBeingAccused || hasBeenAccused || globallyAccused} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "accuse")}>
-						{isBeingAccused ? "Being Accused" : globallyAccused ? "Already Accused" : accuseButtonMsg}
-					</Button>
-				)}
-				{/* localPlayer.preorderEnabled is counterintuitive because we are storing the gameoptions state inside of each player ,but for now it will suffice */}
-				{/* locaPlayer.preorderEnabled == gameOptions.preorder */}
-				{gameOptions.preorder && localPlayer.hasTurn && (
-					<Button variant="warning" size="sm" disabled={playerObject?.preOrderInfo?.isPreordered} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
-						Preorder
-					</Button>
-				)}
-			</div>
+			<h6 className="pod-name" title={playerObject.name}>
+				{playerObject.name}
+			</h6>
+			<span className="pod-score">★ {playerObject.score ?? 0}</span>
+
+			{(canShowAccuse || canShowPreorder) && (
+				<div className="pod-actions">
+					{canShowAccuse && (
+						<Button variant="danger" size="sm" disabled={playerObject.isPreordered || localPlayer.socketID === playerObject.socketID || isBeingAccused || hasBeenAccused || globallyAccused} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "accuse")}>
+							{isBeingAccused ? "Being Accused" : globallyAccused ? "Already Accused" : accuseButtonMsg}
+						</Button>
+					)}
+					{/* localPlayer.preorderEnabled is counterintuitive because we are storing the gameoptions state inside of each player ,but for now it will suffice */}
+					{/* locaPlayer.preorderEnabled == gameOptions.preorder */}
+					{canShowPreorder && (
+						<Button variant="warning" size="sm" disabled={targetIsClaimed || hasPreorderOut} title={preorderTitle} onClick={handleAccuseAndPreorder(localPlayer.socketID, playerObject.socketID, "preorder")}>
+							{preorderLabel}
+						</Button>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };

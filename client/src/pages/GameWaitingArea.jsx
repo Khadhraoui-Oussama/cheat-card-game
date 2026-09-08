@@ -1,17 +1,43 @@
-import {useContext, useEffect, useState} from "react";
-import {Stack, Container, Col, Row, Button, Card, Placeholder} from "react-bootstrap";
-import {Link, Navigate, useNavigate} from "react-router-dom";
+import {useContext, useEffect, useRef, useState} from "react";
+import {Alert, Button} from "react-bootstrap";
+import {Link, useNavigate} from "react-router-dom";
 import {SocketContext} from "../contexts/SocketContext";
 import {PlayerContext} from "../contexts/PlayerContext";
 import PlayerCardHolder from "../components/PlayerCardHolder";
 import PlayerCard from "../components/PlayerCard";
 import {GameContext} from "../contexts/GameContext";
+import {clearSession, saveSession} from "../utils/session";
+import QuitGameModal from "../components/QuitGameModal/QuitGameModal";
 const GameWaitingArea = () => {
-	const {socket, roomCode, setRoomCode} = useContext(SocketContext);
+	const {socket, roomCode, setRoomCode, playerId} = useContext(SocketContext);
 	const {player, setPlayer} = useContext(PlayerContext);
-	const {gameOptions, setGameOptions} = useContext(GameContext);
+	const {gameOptions} = useContext(GameContext);
 	const [userList, setUserList] = useState([]);
+	const [copied, setCopied] = useState(false);
+	const [joinError, setJoinError] = useState(null);
+	const [showLeaveModal, setShowLeaveModal] = useState(false);
+	/*
+		How this screen was left. "left" and "game" are the two deliberate exits
+		and both are already accounted for; anything still null on unmount means
+		the player got out some other way - the browser back button, a stray
+		link - and their seat has to be freed for them.
+	*/
+	const departureRef = useRef(null);
+	// Read on unmount, where the render-time roomCode would be a stale capture.
+	const roomCodeRef = useRef(roomCode);
 	const navigate = useNavigate();
+
+	roomCodeRef.current = roomCode;
+
+	useEffect(
+		() => () => {
+			if (departureRef.current) return;
+			if (!roomCodeRef.current) return;
+			socket.emit("leaveRoom", roomCodeRef.current);
+			clearSession();
+		},
+		[socket]
+	);
 
 	useEffect(() => {
 		if (!socket.connected) {
@@ -27,6 +53,7 @@ const GameWaitingArea = () => {
 				//console.log("ROOMCODE", newRoomCode);
 			} else {
 				const playerNewObj = {
+					playerId,
 					name: player.name,
 					avatar: player.avatar,
 					socketID: socket.id,
@@ -48,7 +75,24 @@ const GameWaitingArea = () => {
 		});
 
 		socket.on("navigateToGameRoomR", (roomCode) => {
+			departureRef.current = "game";
+			saveSession({roomCode});
 			navigate(`/play/${roomCode}`);
+		});
+
+		/*
+			The room turned out to be a game already in progress with a chair
+			standing empty, and the server just sat us in it - so this screen is
+			skipped entirely and we walk straight into the round.
+		*/
+		socket.on("joinedGameInProgress", ({roomCode: joinedRoomCode}) => {
+			departureRef.current = "game";
+			saveSession({roomCode: joinedRoomCode});
+			navigate(`/play/${joinedRoomCode}`);
+		});
+
+		socket.on("joinRoomFailed", ({message}) => {
+			setJoinError(message);
 		});
 
 		return () => {
@@ -56,12 +100,15 @@ const GameWaitingArea = () => {
 			socket.off("updateLocalPlayer");
 			socket.off("updateUserList");
 			socket.off("navigateToGameRoomR");
+			socket.off("joinedGameInProgress");
+			socket.off("joinRoomFailed");
 		};
-	}, [socket, player, roomCode, setRoomCode]);
+	}, [socket, player, roomCode, setRoomCode, playerId]);
 
 	useEffect(() => {
 		if (socket.connected && roomCode) {
 			const playerNewObj = {
+				playerId,
 				name: player.name,
 				avatar: player.avatar,
 				socketID: socket.id,
@@ -71,50 +118,113 @@ const GameWaitingArea = () => {
 			};
 			socket.emit("joinRoom", [roomCode, socket.id, playerNewObj]);
 		}
-	}, [roomCode, socket, player]);
+	}, [roomCode, socket, player, playerId]);
+
+	const handleCopyCode = async () => {
+		try {
+			await navigator.clipboard.writeText(roomCode);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1600);
+		} catch {
+			setCopied(false);
+		}
+	};
+
+	const handleLeaveRoom = () => {
+		departureRef.current = "left";
+		// leaveRoom frees the seat server side; just navigating away would leave
+		// the player sitting at the table until their socket eventually drops.
+		socket.emit("leaveRoom", roomCode);
+		clearSession();
+		setRoomCode("");
+		navigate("/");
+	};
+
+	const isFull = userList.length >= 4;
+	const seats = [0, 1, 2, 3];
 
 	return (
-		<Container className="d-flex justify-content-center align-items-center vh-100">
-			<Col xs={12} sm={10} md={8} lg={6} xl={4} className="bg-green-300 rounded-3 shadow-lg p-4">
-				<Stack gap={4}>
-					<div className="text-center">
-						<h4>Waiting for other players</h4>
-						<h5 className="text-muted pt-1">Game code: {roomCode}</h5>
-					</div>
+		<div className="lobby-shell">
+			<div className="lobby-topbar">
+				<button type="button" className="icon-btn danger" onClick={() => setShowLeaveModal(true)} title="Leave room" aria-label="Leave room">
+					✕
+				</button>
+			</div>
 
-					<div className="d-flex flex-column gap-3">
-						<Row className="g-3">
-							<Col xs={6}>{userList[0] ? <PlayerCard player={userList[0]} /> : <PlayerCardHolder />}</Col>
-							<Col xs={6}>{userList[1] ? <PlayerCard player={userList[1]} /> : <PlayerCardHolder />}</Col>
-						</Row>
-						<Row className="g-3">
-							<Col xs={6}>{userList[2] ? <PlayerCard player={userList[2]} /> : <PlayerCardHolder />}</Col>
-							<Col xs={6}>{userList[3] ? <PlayerCard player={userList[3]} /> : <PlayerCardHolder />}</Col>
-						</Row>
+			<header className="brand fade-up">
+				<span className="eyebrow">Lobby</span>
+				<h1 className="brand-title" style={{fontSize: "clamp(1.6rem, 4vw, 2.2rem)"}}>
+					Waiting for players
+				</h1>
+				<div className="mt-3">
+					<div className="room-code">
+						<span className="eyebrow">Code</span>
+						<code>{roomCode}</code>
+						<button type="button" className="copy-btn" onClick={handleCopyCode}>
+							{copied ? "Copied!" : "Copy"}
+						</button>
 					</div>
+				</div>
+			</header>
 
-					<Row className="align-items-center g-3">
-						<Col xs={8}>
-							<Button
-								variant={userList.length < 4 ? "secondary" : "success"}
-								onClick={() => {
-									if (userList.length >= 4) {
-										socket.emit("navigateToGameRoom", roomCode);
-										navigate(`/play/${roomCode}`);
-									}
-								}}
-								disabled={userList.length < 4 || !player.isLeader}
-								className="w-100">
-								Play Now
-							</Button>
-						</Col>
-						<Col xs={4} className="text-center">
-							<span className="fs-5">{userList.length}/4</span>
-						</Col>
-					</Row>
-				</Stack>
-			</Col>
-		</Container>
+			<main className="panel lobby-card fade-up">
+				<div className="seat-grid">
+					{seats.map((index) => (
+						<div key={index}>{userList[index] ? <PlayerCard player={userList[index]} /> : <PlayerCardHolder />}</div>
+					))}
+				</div>
+
+				<div className="d-flex flex-column gap-2">
+					<div className="d-flex align-items-center justify-content-between">
+						<span className="eyebrow">Table</span>
+						<span className="chip">{userList.length} / 4 seated</span>
+					</div>
+					<div className="progress-track">
+						<div className="progress-fill" style={{width: `${(Math.min(userList.length, 4) / 4) * 100}%`}} />
+					</div>
+				</div>
+
+				<Button
+					variant={isFull ? "success" : "secondary"}
+					size="lg"
+					onClick={() => {
+						if (isFull) {
+							departureRef.current = "game";
+							saveSession({roomCode});
+							socket.emit("navigateToGameRoom", roomCode);
+							navigate(`/play/${roomCode}`);
+						}
+					}}
+					disabled={!isFull || !player.isLeader}
+					className="w-100">
+					{isFull ? "Start the game" : `Need ${4 - userList.length} more player${4 - userList.length === 1 ? "" : "s"}`}
+				</Button>
+
+				{joinError && (
+					<Alert variant="danger" className="mb-0">
+						{joinError}{" "}
+						<Link to="/" className="alert-link">
+							Back to the lobby
+						</Link>
+					</Alert>
+				)}
+
+				{!player.isLeader && !joinError && <p className="muted text-center m-0" style={{fontSize: "0.85rem"}}>Only the host can start the game.</p>}
+			</main>
+
+			<p className="muted text-center m-0" style={{fontSize: "0.85rem", maxWidth: "440px"}}>
+				Share the code above with three friends — the game begins as soon as every seat is taken.
+			</p>
+
+			<QuitGameModal
+				show={showLeaveModal}
+				onHide={() => setShowLeaveModal(false)}
+				onConfirm={handleLeaveRoom}
+				title="Leave this table?"
+				body="Your seat opens up for someone else. You can join another table or start your own from the lobby."
+				confirmLabel="Leave table"
+			/>
+		</div>
 	);
 };
 

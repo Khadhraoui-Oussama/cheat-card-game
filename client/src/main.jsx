@@ -6,6 +6,7 @@ import {BrowserRouter} from "react-router-dom";
 import {PlayerContextProvider} from "./contexts/PlayerContext.jsx";
 import {SocketContextProvider} from "./contexts/SocketContext.jsx";
 import {GameContextProvider} from "./contexts/GameContext.jsx";
+import "./styles/ui.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
 	<BrowserRouter>

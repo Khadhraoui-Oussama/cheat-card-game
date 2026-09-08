@@ -17,13 +17,19 @@ export const PlayerContextProvider = ({children}) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const [inputError, setInputError] = useState(false);
 
+	// Shared by every path that leads to a table (create, quick match, join by
+	// code) so they all agree on what counts as a usable player.
+	const validatePlayerInfo = () => {
+		const isValid = Boolean(player.avatar) && Boolean(player.name) && validator.isLength(player.name, 3, 20);
+		setInputError(!isValid);
+		return isValid;
+	};
+
 	const openPopup = () => {
-		if (!player.avatar || !player.name || !validator.isLength(player.name, 3, 20)) {
+		if (!validatePlayerInfo()) {
 			setIsOpen(false);
-			setInputError(true);
 		} else {
 			setIsOpen(true);
-			setInputError(false);
 		}
 	};
 	return (
@@ -36,9 +42,11 @@ export const PlayerContextProvider = ({children}) => {
 				selectedAvatarPath,
 				setSelectedAvatarPath,
 				openPopup,
+				validatePlayerInfo,
 				isOpen,
 				setIsOpen,
 				inputError,
+				setInputError,
 			}}>
 			{children}
 		</PlayerContext.Provider>

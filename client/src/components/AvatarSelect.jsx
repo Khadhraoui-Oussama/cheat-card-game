@@ -1,8 +1,6 @@
-import {useContext, useState, useEffect} from "react";
+import {useContext} from "react";
 import {PlayerContext} from "../contexts/PlayerContext";
 import "bootstrap/dist/css/bootstrap.min.css";
-
-import {Col, Image} from "react-bootstrap";
 
 const AvatarSelect = () => {
 	const {player, setPlayer, selectedAvatarPath, setSelectedAvatarPath} = useContext(PlayerContext);
@@ -13,24 +11,21 @@ const AvatarSelect = () => {
 		avatarList.push(`/avatars/${prefix}${index}.svg`);
 	}
 
-	// useEffect(() => {
-	// 	console.log("player", player);
-	// }, [player]);
-
 	return avatarList.map((imagePath, indexKey) => {
-		const bg_color = imagePath === selectedAvatarPath ? "bg-success" : "";
+		const isSelected = imagePath === selectedAvatarPath;
 		return (
-			<Col
-				xs={-1}
+			<button
+				type="button"
 				key={indexKey}
+				aria-label={`Avatar ${indexKey + 1}`}
+				aria-pressed={isSelected}
 				onClick={() => {
 					setPlayer({...player, avatar: imagePath});
 					setSelectedAvatarPath(imagePath);
 				}}
-				className={`${bg_color} m-1 rounded-3`}
-				style={{cursor: "pointer", background: "#ddebf0"}}>
-				<Image className="rounded-3" src={imagePath} width={40} />
-			</Col>
+				className={`avatar-tile${isSelected ? " selected" : ""}`}>
+				<img src={imagePath} alt="" />
+			</button>
 		);
 	});
 };

@@ -1,15 +1,12 @@
-import {Button, Card} from "react-bootstrap";
-
 const PlayerCard = ({player}) => {
 	return (
-		<Card className="w-50 m-auto shadow-2xl" style={{maxWidth: "100%", maxHeight: "100%"}}>
-			<Card.Img className="w-50 m-auto" src={player.avatar} />
-			<Card.Body>
-				<Card.Title style={{fontSize: "1rem"}} className="text-center shadow">
-					{player.name}
-				</Card.Title>
-			</Card.Body>
-		</Card>
+		<div className="seat filled">
+			{player.isLeader && <span className="seat-badge">Host</span>}
+			<div className="seat-avatar">
+				<img src={player.avatar} alt="" />
+			</div>
+			<div className="seat-name">{player.name}</div>
+		</div>
 	);
 };
 

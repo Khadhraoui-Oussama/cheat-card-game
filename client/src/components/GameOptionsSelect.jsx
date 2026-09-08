@@ -1,63 +1,60 @@
-import {useContext, useState} from "react";
-import {Button, Col, Form, FormControl, FormGroup, FormLabel, FormSelect, Image, Row, Stack} from "react-bootstrap";
+import {useContext} from "react";
+import {Button, Form} from "react-bootstrap";
 import {GameContext} from "../contexts/GameContext";
 import {PlayerContext} from "../contexts/PlayerContext";
 import {Link} from "react-router-dom";
 
 const GameOptionsSelect = () => {
-	const [isPasswordVisible, setIsPassowrdVisible] = useState(false);
-	//const {} = useContext(GameContext);
-	const {setIsOpen, player, setPlayer} = useContext(PlayerContext);
+	const {setIsOpen} = useContext(PlayerContext);
 	const {gameOptions, setGameOptions} = useContext(GameContext);
 
 	return (
-		<Stack className="popup-container ">
-			<Stack className="popup p-2" gap={2}>
-				<h3>Select game options</h3>
-				<Form>
-					<Stack>
-						<Col>
-							<Form.Check
-								type="checkbox"
-								label="Allow Preorders"
-								checked={gameOptions.preorder}
-								onChange={() =>
-									setGameOptions((prev) => ({
-										...prev,
-										preorder: !prev.preorder,
-									}))
-								}
-							/>
-							{/* <Form.Check type="checkbox" label="Power-Ups" /> */}
-							<Stack direction="horizontal" gap={2}>
-								<FormLabel>Cards Suit</FormLabel>
-								<FormSelect>
-									<option>Classic</option>
-								</FormSelect>
-							</Stack>
-							<FormLabel className="pt-2">More suits coming soon !!!</FormLabel>
+		<div className="options-dialog">
+			<div className="options-head">
+				<span className="eyebrow">New game</span>
+				<h3>Table rules</h3>
+			</div>
 
-							<Stack direction="horizontal" className="d-flex justify-center" gap={2}>
-								<Button onClick={() => setIsOpen(false)}>Cancel</Button>
-								<Link
-									to="/wa/"
-									// onClick={() => console.log("going to game waiting area")}
-								>
-									<Button
-										onClick={() => {
-											setIsOpen(false);
+			<Form className="options-body">
+				<label className="option-row">
+					<div>
+						<div className="option-title">Allow preorders</div>
+						<p className="option-help">Players can queue an accusation against someone before their turn comes around.</p>
+					</div>
+					<Form.Check
+						type="switch"
+						checked={gameOptions.preorder}
+						onChange={() =>
+							setGameOptions((prev) => ({
+								...prev,
+								preorder: !prev.preorder,
+							}))
+						}
+					/>
+				</label>
 
-											// console.log("Player before starting :", player);
-										}}>
-										Play Now
-									</Button>
-								</Link>
-							</Stack>
-						</Col>
-					</Stack>
-				</Form>
-			</Stack>
-		</Stack>
+				<div className="option-row">
+					<div>
+						<div className="option-title">Card suit</div>
+						<p className="option-help">More decks are on the way.</p>
+					</div>
+					<Form.Select style={{maxWidth: "150px"}}>
+						<option>Classic</option>
+					</Form.Select>
+				</div>
+			</Form>
+
+			<div className="options-foot">
+				<Button variant="secondary" onClick={() => setIsOpen(false)}>
+					Cancel
+				</Button>
+				<Link to="/wa/">
+					<Button variant="success" onClick={() => setIsOpen(false)}>
+						Play now
+					</Button>
+				</Link>
+			</div>
+		</div>
 	);
 };
 

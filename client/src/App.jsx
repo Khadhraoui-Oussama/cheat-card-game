@@ -11,13 +11,19 @@ import {SocketContext, SocketContextProvider} from "./contexts/SocketContext.jsx
 import {io} from "socket.io-client";
 import GameBoardGrid from "./components/gameRoomComponents/GameBoardGrid/GameBoardGrid.jsx";
 
+
+
+
+//remove accuse option after a player was preordered and didn't play their turn, meaning we can't accuse that player
+//remove accuse button if a  player was skipped , meaning we can't accuse that player
+//after a preorded was done we should wait for the player to play their turn before we check if the accuser who preordered was right or wrong.
 const App = () => {
 	const {player} = useContext(PlayerContext);
 	const {socket, setSocket, roomCode, setRoomCode} = useContext(SocketContext);
 
 	useEffect(() => {
 		const backendUrl = import.meta.env.VITE_PROD_BACKEND_URL;
-		// const backendUrl = import.meta.env.VITE_DEV_BACKEND_URL;
+		//const backendUrl = import.meta.env.VITE_DEV_BACKEND_URL;
 		// console.log(backendUrl);
 		const newSocket = io(backendUrl, {autoConnect: false});
 		setSocket(newSocket);
@@ -27,7 +33,16 @@ const App = () => {
 	//TODO SOME OF THESE ROUTES NEED TO BE CHECKED FIRST FOR PLAYER , SOCKET OR ROOMCODE EXISTENCE TO AVOID UNAUTHORIZED ACCESS
 	// Conditionally render routes based on socket initialization
 	if (!socket) {
-		return <div>Loading...</div>;
+		return (
+			<div className="lobby-shell">
+				<div className="brand-mark" aria-hidden="true">
+					<span className="brand-suit red">♥</span>
+					<span className="brand-suit">♠</span>
+					<span className="brand-suit red">♦</span>
+				</div>
+				<p className="muted">Shuffling the deck…</p>
+			</div>
+		);
 	}
 	return (
 		<Routes>

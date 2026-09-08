@@ -1,20 +1,19 @@
-import React, {useState, useEffect, useContext} from "react";
+import {useState, useEffect, useContext} from "react";
 import "./GameBoardGrid.css";
 import {SocketContext} from "../../../contexts/SocketContext";
-import {Button, ButtonGroup, Container, Placeholder, Stack, Card} from "react-bootstrap";
+import {Button} from "react-bootstrap";
 import PlayerAvatarInGrid from "./PlayerAvatarInGrid";
 
 /*
-THIS IS FOR THE PREVIOUS LOGIC OF GAMEBOARD WILL BE IMPORTED HERE FOR LAYOUT REASONS 
+THIS IS FOR THE PREVIOUS LOGIC OF GAMEBOARD WILL BE IMPORTED HERE FOR LAYOUT REASONS
 */
 import {DndContext, DragOverlay, pointerWithin} from "@dnd-kit/core";
 import {useSensor, useSensors, MouseSensor, TouchSensor, KeyboardSensor} from "@dnd-kit/core";
-import {arrayMove, SortableContext, sortableKeyboardCoordinates} from "@dnd-kit/sortable";
-import SortableItem from "../SortableItem";
+import {arrayMove, sortableKeyboardCoordinates} from "@dnd-kit/sortable";
+import PlayableCard from "../PlayableCard";
 import DroppableArea from "../DroppableArea";
 
 /** END **/
-import LastCardDisplay from "../LastCardDisplay";
 import PowerupAnimation from "../PowerupAnimation/PowerupAnimation";
 import PlayerSelectionModal from "../PlayerSelectionModal/PlayerSelectionModal";
 import CardsRevealModal from "../CardsRevealModal/CardsRevealModal";
@@ -22,10 +21,41 @@ import ChatBox from "../ChatBox/ChatBox";
 import LastCardModal from "../../LastCardModal/LastCardModal";
 import {useNavigate} from "react-router-dom";
 import QuitGameModal from "../../QuitGameModal/QuitGameModal";
-import DisconnectModal from "../../DisconnectModal/DisconnectModal";
 import "./themes.css";
 import SettingsModal from "../../SettingsModal/SettingsModal";
 import GameOverModal from "../GameOverModal/GameOverModal";
+import ConnectionOverlay from "../../ConnectionOverlay/ConnectionOverlay";
+import {clearSession, saveSession} from "../../../utils/session";
+import {POWERUPS, powerupById} from "../../../utils/powerups";
+
+const TURN_SECONDS = 30;
+
+const CARD_LABELS = {A: "Ace", J: "Jack", Q: "Queen", K: "King"};
+
+/*
+	A player who left for good keeps their chair in the roster - the hand is
+	still on the table - so the empty seats are read straight off the roster
+	rather than tracked separately. Every roster the server sends (the initial
+	list, an update, the board handed back on reconnect) is the whole truth.
+*/
+const openSeatsFrom = (roster) => (Array.isArray(roster) ? roster.filter((seat) => seat.awaitingReplacement).map(({playerId, name}) => ({playerId, name})) : []);
+
+const TimerRing = ({seconds}) => {
+	const radius = 19;
+	const circumference = 2 * Math.PI * radius;
+	const ratio = Math.max(0, Math.min(1, seconds / TURN_SECONDS));
+	const tone = seconds > 10 ? "" : seconds > 5 ? "warn" : "urgent";
+
+	return (
+		<div className={`timer ${tone}`} title="Time left in this turn">
+			<svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+				<circle className="track" cx="23" cy="23" r={radius} fill="none" strokeWidth="4" />
+				<circle className="bar" cx="23" cy="23" r={radius} fill="none" strokeWidth="4" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - ratio)} />
+			</svg>
+			<span className="timer-value">{Math.max(0, seconds)}</span>
+		</div>
+	);
+};
 
 const GameBoardGrid = () => {
 	/** PREVIOUS GAMEBOARD LOGIC HERE  **/
@@ -85,34 +115,32 @@ const GameBoardGrid = () => {
 
 		setActiveId(null);
 	};
-	// useEffect(() => {
-	// 	console.log("Your cards:", yourCards);
-	// 	console.log("Cards to play:", cardsToPlay);
-	// }, [yourCards, cardsToPlay]);
 
 	/** END PREVIOUS GAMEBOARD LOGIC **/
 
 	//TODO THE CLOCK SOULD BE SERVER SIDE FOR SYNCHRONUZATION
 	//TODO START THE GAME LOGIC
 
-	const {socket, roomCode} = useContext(SocketContext);
+	const {socket, roomCode, playerId} = useContext(SocketContext);
 	const [usersinRoom, setUsersInRoom] = useState([]);
+
+	// "online" | "reconnecting" | "failed"
+	const [connectionState, setConnectionState] = useState("online");
+	const [connectionError, setConnectionError] = useState(null);
+	const [awayPlayer, setAwayPlayer] = useState(null); // someone else mid-reconnect
 
 	const [isPlayersDataLoading, setIsPlayersDataLoading] = useState(true); // Add loading state for player avatar placeholders until their avatar loads
 
 	const [gameStarted, setGameStarted] = useState(false);
 	const [localPlayerHasTurn, setLocalPlayerHasTurn] = useState(false);
 	const [currentTurnPlayer, setCurrentTurnPlayer] = useState(null);
+	const [currentCardValue, setCurrentCardValue] = useState(null);
 	const [eventMessage, setEventMessage] = useState("All game events will be displayed here.");
-	const [currentCardValuePlaying, setCurrentCardValuePlaying] = useState(null);
 	const [lastPlayedPlayer, setLastPlayedPlayer] = useState(null);
 	const [lastCardPresented, setLastCardPresented] = useState(null);
 
-	// Add state for animation
-	const [showPowerupAnimation, setShowPowerupAnimation] = useState(false);
-	const [powerupAnimationId, setPowerupAnimationId] = useState(null);
-	const [powerupAnimationName, setPowerupAnimationName] = useState("");
-	const [lastPowerupReceiver, setLastPowerupReceiver] = useState(null);
+	// The powerup roll in flight, or null: {powerUpID, accuserName, accusedName, isMine}
+	const [powerupRoll, setPowerupRoll] = useState(null);
 	const [showCardsReveal, setShowCardsReveal] = useState(false);
 	const [revealedCards, setRevealedCards] = useState({cards: [], playerName: ""});
 
@@ -121,8 +149,10 @@ const GameBoardGrid = () => {
 	const [showLastCardModal, setShowLastCardModal] = useState(false);
 	const [winner, setWinner] = useState(null);
 	const [orderedRestOfPlayersForGamOver, setOrderedRestOfPlayersForGameOver] = useState([]);
-	const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-	const [disconnectedPlayer, setDisconnectedPlayer] = useState(null);
+	const [openSeats, setOpenSeats] = useState([]); // chairs waiting for a replacement
+	// Who has claimed whom. Public, because a preorder is open to everyone at
+	// the table and each player only ever holds one.
+	const [preorders, setPreorders] = useState([]);
 	const [showGameOverModal, setShowGameOverModal] = useState(false);
 
 	useEffect(() => {
@@ -142,23 +172,29 @@ const GameBoardGrid = () => {
 		socket.emit("getUsersInRoom", roomCode);
 		socket.on("getUsersInRoomR", (usersArray) => {
 			setUsersInRoom(usersArray);
+			setOpenSeats(openSeatsFrom(usersArray));
 			setIsPlayersDataLoading(false); // Data is loaded, stop showing placeholders
 			getPlayerAndOthers(usersArray);
 			// console.log("users in the room array: ", usersArray);
 		});
 
 		socket.on("updateUserList", (updatedUserList) => {
-			if (updatedUserList.length < 4) {
-				const disconnectedPlayer = usersinRoom.find((player) => !updatedUserList.find((p) => p.socketID === player.socketID));
-				setDisconnectedPlayer(disconnectedPlayer);
-				setShowDisconnectModal(true);
-			}
+			// A short roster no longer means the game is over - a player may just
+			// be mid-reconnect, or their chair may be standing empty waiting for
+			// somebody to take it over.
 			setUsersInRoom(updatedUserList);
+			setOpenSeats(openSeatsFrom(updatedUserList));
+			getPlayerAndOthers(updatedUserList);
 		});
 		socket.on("startGameR", (roomCode) => {
 			// console.log("Game started in room:", roomCode);
 			setGameStarted(true);
 			setGameOver(false);
+			setPreorders([]); // a fresh deal clears every claim
+		});
+
+		socket.on("preordersUpdated", (claims) => {
+			setPreorders(Array.isArray(claims) ? claims : []);
 		});
 
 		socket.on("updateLocalPlayer", (player) => {
@@ -171,10 +207,8 @@ const GameBoardGrid = () => {
 			setIsNewTurn(data.newTurnStatus);
 			setLocalPlayerHasTurn(data.currentPlayer === socket.id);
 			setCurrentTurnPlayer(data.currentPlayer);
-			// Only update lastPlayedPlayer if cards were actually played
-			if (data.lastPlayedPlayer !== null) {
-				setLastPlayedPlayer(data.lastPlayedPlayer);
-			}
+			setLastPlayedPlayer(data.lastPlayedPlayer ?? null);
+			setCurrentCardValue(data.currentCardValue ?? null);
 		});
 		socket.on("gameOver", (data) => {
 			const {winner, players} = data;
@@ -190,12 +224,6 @@ const GameBoardGrid = () => {
 			setGameOver(true);
 			setShowGameOverModal(true); // Make sure this is set to true
 			setEventMessage(`Game Over! Winner is ${winner.name}`);
-
-			console.log("Game Over Data:", {
-				winner,
-				orderedPlayers: otherPlayers,
-				showModal: true,
-			});
 		});
 
 		socket.on("receiveCards", (player) => {
@@ -224,17 +252,9 @@ const GameBoardGrid = () => {
 		});
 		// Update the playPowerupDice socket handler
 		socket.on("playPowerupDice", (data) => {
-			console.log("Powerup received data:", data);
-			setPowerupAnimationId(data.powerUpID);
-			if (data.powerUpID == 0) {
-				setPowerupAnimationName("True Vision");
-			} else if (data.powerUpID == 1) {
-				setPowerupAnimationName("Cleanse");
-			} else if (data.powerUpID == 2) {
-				setPowerupAnimationName("Skip Player");
-			}
-			setLastPowerupReceiver(data.accuserName);
-			setShowPowerupAnimation(true);
+			// The roll is shown to the whole room, so it carries who caught whom
+			// and reads differently for the player who won it.
+			setPowerupRoll({...data, isMine: data.accuserID === socket.id});
 
 			// Update powerup button state using data directly from event
 			if (data.accuserID === socket.id) {
@@ -244,15 +264,20 @@ const GameBoardGrid = () => {
 				}));
 			}
 		});
-		socket.on("playerDisconnected", ({remainingPlayers, disconnectedPlayer}) => {
-			setUsersInRoom(remainingPlayers);
-			setDisconnectedPlayer(disconnectedPlayer);
-			setShowDisconnectModal(true);
+		/*
+			Somebody is gone for good. The round is not over: the server keeps
+			their chair and everything on it, so the table just waits here until
+			a replacement (or the same player) sits down.
+		*/
+		socket.on("seatOpened", ({name, openSeats: seats}) => {
+			setOpenSeats(seats ?? []);
+			setAwayPlayer(null); // the grace countdown is over, no timer to show
+			setEventMessage(`${name} left the table — waiting for someone to take their seat.`);
+		});
 
-			// Stop any ongoing timers or game states
-			setTimeLeft(0);
-			setGameStarted(false);
-			setGameOver(true);
+		socket.on("seatFilled", ({name, replacedName, openSeats: seats}) => {
+			setOpenSeats(seats ?? []);
+			setEventMessage(replacedName ? `${name} took over ${replacedName}'s seat — play resumes.` : `${name} is back at the table — play resumes.`);
 		});
 
 		return () => {
@@ -264,14 +289,11 @@ const GameBoardGrid = () => {
 			socket.off("updateLocalPlayer");
 			socket.off("lastCardPresented");
 			socket.off("startGameR");
-			socket.off("playerDisconnected");
+			socket.off("preordersUpdated");
+			socket.off("seatOpened");
+			socket.off("seatFilled");
 		};
 	}, [socket]);
-
-	// useEffect(() => {
-	// 	console.log("Current Player:", localPlayer);
-	// 	console.log("Other Players:", otherPlayers);
-	// }, [localPlayer, otherPlayers]);
 
 	//WE HAVE LOCAL PLAYER WHICH IS US , AND THE OTHER PLAYERS IN THE ROOM IN otherPlayers ARRAY
 
@@ -280,7 +302,7 @@ const GameBoardGrid = () => {
 		socket.emit("startGame", {roomCode: roomCode, socketID: socket.id});
 		// Reset necessary game states
 		setGameOver(false);
-		setTimeLeft(30);
+		setTimeLeft(TURN_SECONDS);
 		setYourCards([]);
 		setCardsToPlay([]);
 		setEventMessage("All game events will be displayed here.");
@@ -337,7 +359,6 @@ const GameBoardGrid = () => {
 			} else {
 				lastCardValue = null;
 			}
-			console.log("****last cardValueTOld", lastCardValue);
 			let cardValueTold = lastCardValue;
 			socket.emit("makeMove", {
 				roomCode,
@@ -370,23 +391,11 @@ const GameBoardGrid = () => {
 		setIsNewTurn(false);
 	};
 
-	const PlayerPlaceholder = () => (
-		<Card style={{width: "150px"}}>
-			<Card.Body>
-				<Placeholder as={Card.Text} animation="glow">
-					<Placeholder xs={10} />
-				</Placeholder>
-				<Placeholder.Button variant="success" xs={6} />
-				<Placeholder.Button variant="danger" xs={6} />
-			</Card.Body>
-		</Card>
-	);
-
 	const [isNewTurn, setIsNewTurn] = useState(false); //to be updtaed when the player wins the accusation wether accuser or accused
 	const [enablePowerupsButtonState, setEnablePowerupsButtonState] = useState({0: 0, 1: 0, 2: 0});
 
 	// Separate timer-related state and effects
-	const [timeLeft, setTimeLeft] = useState(30);
+	const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
 
 	// Add a dedicated effect for timer-related socket events
 	useEffect(() => {
@@ -433,6 +442,12 @@ const GameBoardGrid = () => {
 			setCurrentPowerupAction("skipPlayer");
 			setShowPlayerSelection(true);
 		}
+	};
+
+	const powerupHandlers = {
+		0: handleTrueVisionPowerup,
+		1: handleCleansePowerup,
+		2: handleSkipPlayerPowerup,
 	};
 
 	// Add to your existing socket event listeners
@@ -491,18 +506,21 @@ const GameBoardGrid = () => {
 	// Add new state
 	const [canAccuse, setCanAccuse] = useState(true);
 	const [currentAccusation, setCurrentAccusation] = useState(null);
+	const [isLocalPlayerAccused, setIsLocalPlayerAccused] = useState(false);
 
 	// Add to your existing useEffect or create new one
 	useEffect(() => {
 		socket.on("accusationStarted", (data) => {
 			setCanAccuse(false);
 			setCurrentAccusation(data);
+			setIsLocalPlayerAccused(data.accusedId === socket.id);
 			setEventMessage(`${data.accuserName} is accusing ${data.accusedName}!`);
 		});
 
 		socket.on("accusationResolved", () => {
 			setCanAccuse(true);
 			setCurrentAccusation(null);
+			setIsLocalPlayerAccused(false);
 		});
 
 		return () => {
@@ -522,12 +540,13 @@ const GameBoardGrid = () => {
 
 	const handleConfirmQuit = () => {
 		socket.emit("leaveRoom", roomCode);
+		clearSession();
 		navigate("/");
 	};
 
 	// Add these states at the top of your component
 	const [showSettings, setShowSettings] = useState(false);
-	const [theme, setTheme] = useState("light");
+	const [theme, setTheme] = useState("dark");
 
 	// Add theme change handler
 	const handleThemeChange = (newTheme) => {
@@ -543,162 +562,295 @@ const GameBoardGrid = () => {
 		}
 	}, []);
 
+	/* ------------------------------------------------------------------ */
+	/* RECONNECTION                                                        */
+	/* ------------------------------------------------------------------ */
+	/*
+		socket.io reconnects the transport on its own, but the new socket is a
+		stranger to the server: it is not in the room and nothing knows it owns
+		our seat. `attemptReconnect` re-binds the seat to the new socket id and
+		hands the whole board back. It runs on every connect (including the
+		first one walking in from the waiting area, which the server treats as a
+		harmless no-op resync) so there is only one code path to get wrong.
+	*/
+	useEffect(() => {
+		if (!roomCode || !playerId) return;
+
+		const resync = () => {
+			socket.emit("attemptReconnect", {roomCode, playerId});
+		};
+
+		const handleDisconnect = (reason) => {
+			// We asked for this one (quitting the game) - not a failure.
+			if (reason === "io client disconnect") return;
+			setConnectionState("reconnecting");
+		};
+
+		const handleReconnected = ({player, players, gameStarted: startedOnServer, currentTurnSocketID, lastPlayedSocketID, currentCardValue: currentCardValueOnServer, isNewTurn: newTurnOnServer, timeLeft: timeLeftOnServer, preorders: preordersOnServer}) => {
+			setConnectionState("online");
+			setConnectionError(null);
+
+			if (player) {
+				setLocalPlayer(player);
+				setYourCards(Array.isArray(player.cards) ? player.cards : []);
+			}
+
+			if (Array.isArray(players)) {
+				setUsersInRoom(players);
+				setOpenSeats(openSeatsFrom(players));
+				setOtherPlayers(players.filter((user) => user.socketID !== socket.id));
+				setIsPlayersDataLoading(false);
+			}
+
+			setGameStarted(Boolean(startedOnServer));
+			setPreorders(Array.isArray(preordersOnServer) ? preordersOnServer : []);
+
+			if (startedOnServer) {
+				setGameOver(false);
+				setCurrentTurnPlayer(currentTurnSocketID);
+				setLocalPlayerHasTurn(currentTurnSocketID === socket.id);
+				setLastPlayedPlayer(lastPlayedSocketID ?? null);
+				setCurrentCardValue(currentCardValueOnServer ?? null);
+				setIsNewTurn(Boolean(newTurnOnServer));
+				setTimeLeft(timeLeftOnServer ?? 0);
+			}
+
+			// Anything staged but unconfirmed never left our hand server side,
+			// so the authoritative hand above already contains it.
+			setCardsToPlay([]);
+			saveSession({roomCode});
+		};
+
+		const handleReconnectFailed = ({message}) => {
+			setConnectionState("failed");
+			setConnectionError(message);
+			clearSession();
+		};
+
+		const handleConnectionChanged = ({name, connected, graceSeconds}) => {
+			setAwayPlayer(connected ? null : {name, secondsLeft: graceSeconds ?? 60});
+		};
+
+		socket.on("connect", resync);
+		socket.on("disconnect", handleDisconnect);
+		socket.on("reconnectionSuccessful", handleReconnected);
+		socket.on("reconnectionFailed", handleReconnectFailed);
+		socket.on("playerConnectionChanged", handleConnectionChanged);
+
+		if (socket.connected) resync();
+
+		return () => {
+			socket.off("connect", resync);
+			socket.off("disconnect", handleDisconnect);
+			socket.off("reconnectionSuccessful", handleReconnected);
+			socket.off("reconnectionFailed", handleReconnectFailed);
+			socket.off("playerConnectionChanged", handleConnectionChanged);
+		};
+	}, [socket, roomCode, playerId]);
+
+	// Countdown for the "waiting for X" banner.
+	useEffect(() => {
+		if (!awayPlayer) return;
+		const intervalId = setInterval(() => {
+			setAwayPlayer((previous) => (previous ? {...previous, secondsLeft: previous.secondsLeft - 1} : null));
+		}, 1000);
+		return () => clearInterval(intervalId);
+	}, [awayPlayer?.name]);
+
+	const handleReturnToLobby = () => {
+		clearSession();
+		socket.disconnect();
+		navigate("/");
+	};
+
+	// Nothing can be played into a table with an empty chair - the server
+	// refuses the move anyway, so the buttons say so up front.
+	const isWaitingForSeat = openSeats.length > 0;
+
+	/*
+		A preorder no longer waits for your turn: it can be placed at any point
+		of a live round, by anybody, as long as the table is whole. The one claim
+		you are allowed is read from the same public list everyone else sees.
+	*/
+	const roundInPlay = gameStarted && !gameOver && !isWaitingForSeat;
+	const hasPreorderOut = Boolean(preorders.find((claim) => claim.socketID === socket.id)?.hasIssuedPreorder);
+
+	/*
+		Cleanse is the one powerup with a moment: it clears the preorder sitting
+		on you, and a preorder is exactly what turns into an accusation the
+		instant you play. So the button calls for attention while you are under
+		one - or while an accusation is actually being read out against you.
+	*/
+	const localPlayerIsPreordered = Boolean(preorders.find((claim) => claim.socketID === socket.id)?.isPreordered);
+	const cleanseIsUrgent = localPlayerIsPreordered && enablePowerupsButtonState[1] > 0;
+
+	const renderOpponent = (seat) => {
+		if (isPlayersDataLoading) {
+			return <div className="pod-skeleton" aria-hidden="true" />;
+		}
+		return (
+			<PlayerAvatarInGrid
+				playerObject={otherPlayers[seat]}
+				localPlayer={localPlayer}
+				hasCurrentTurn={otherPlayers[seat]?.socketID === currentTurnPlayer}
+				hasLastPlayed={otherPlayers[seat]?.socketID === lastPlayedPlayer}
+				canAccuse={canAccuse && lastPlayedPlayer !== null}
+				roundInPlay={roundInPlay}
+				hasPreorderOut={hasPreorderOut}
+				preorder={preorders.find((claim) => claim.socketID === otherPlayers[seat]?.socketID)}
+			/>
+		);
+	};
+
 	return (
 		<DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-			<div className="position-relative">
-				<div className={`container1 theme-${theme}`}>
-					{/* first row */}
-					<div className="d-flex justify-center items-center">
-						<Button variant="info" onClick={() => setShowSettings(true)}>
-							Settings
-						</Button>
+			<div className={`game-shell theme-${theme}`}>
+				{/* ---- top bar ---- */}
+				<header className="game-topbar">
+					<button type="button" className="icon-btn" onClick={() => setShowSettings(true)} title="Settings" aria-label="Settings">
+						⚙
+					</button>
+					<span className="chip d-none d-md-inline-flex">
+						Room <strong style={{color: "var(--gold)"}}>{roomCode}</strong>
+					</span>
+
+					<div className="event-banner">
+						<span className="event-dot" />
+						<span className="event-text" title={eventMessage}>
+							Current card: {currentCardValue ? CARD_LABELS[currentCardValue] ?? currentCardValue : "—"}  |||||  {eventMessage}
+						</span>
 					</div>
-					<div className=" col-span-2 d-flex justify-center items-center bg-cyan-200 rounded-2xl">{eventMessage}</div>
-					<div className="d-flex justify-center items-center">
-						<Button variant="danger" onClick={handleQuitGame}>
-							Quit Game
-						</Button>
-					</div>
-					{/* second row */}
-					<div className="col-span-4 d-flex justify-around">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[0]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[0]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[0]?.socketID === lastPlayedPlayer} canAccuse={canAccuse && lastPlayedPlayer !== null} />}</div>
-					{/* third row */}
-					<div className="col-span-4 d-flex justify-center gap-1">
-						<div className="col-span-4 d-flex justify-around items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid playerObject={otherPlayers[1]} localPlayer={localPlayer} hasCurrentTurn={otherPlayers[1]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[1]?.socketID === lastPlayedPlayer} />}</div>
-						<div className="w-1/3 d-flex justify-center items-center bg-amber-100 rounded-2xl ">
+
+					{!gameOver && gameStarted && <TimerRing seconds={timeLeft} />}
+
+					<button type="button" className="icon-btn danger" onClick={handleQuitGame} title="Quit game" aria-label="Quit game">
+						✕
+					</button>
+				</header>
+
+				{/* ---- table ---- */}
+				<div className="game-main">
+					<aside className="chat-panel">
+						<ChatBox socket={socket} roomCode={roomCode} playerName={localPlayer?.name} />
+					</aside>
+
+					<section className="game-table">
+						<ConnectionOverlay state={connectionState} errorMessage={connectionError} awayPlayer={awayPlayer} openSeats={openSeats} roomCode={roomCode} onReturnToLobby={handleReturnToLobby} />
+
+						<div className="opponents-row">
+							{renderOpponent(0)}
+							{renderOpponent(1)}
+							{renderOpponent(2)}
+						</div>
+
+						<div className="table-center">
 							{localPlayerHasTurn ? (
-								<DroppableArea
-									id="cards-to-play"
-									items={cardsToPlay}
-									style={{
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "center",
-										position: "relative",
-										width: "100%",
-										maxWidth: "800px",
-										padding: "10px 0",
-										backgroundColor: "var(--droppable-bg)",
-										margin: "10px auto",
-										minHeight: "100px",
-										cursor: "default",
-									}}
-									customDroppableAreaLabel={"Drag your cards here to play your move."}
-								/>
+								<DroppableArea id="cards-to-play" items={cardsToPlay} className="play-zone" hint="Drag your cards here to play your move." />
 							) : (
-								<img src="../../../../cardPile.svg" width={200} />
+								<div className="pile-idle">
+									<img src="/cardPile.svg" alt="" />
+									<span>{isWaitingForSeat ? "Paused — the table needs a player" : gameStarted ? "Waiting for the current player…" : "The pile is ready"}</span>
+								</div>
 							)}
 						</div>
-						<div className="col-span-4 d-flex justify-center items-center">{isPlayersDataLoading ? <p className="d-flex items-center text-center">Player Loading ...</p> : <PlayerAvatarInGrid localPlayer={localPlayer} playerObject={otherPlayers[2]} hasCurrentTurn={otherPlayers[2]?.socketID === currentTurnPlayer} hasLastPlayed={otherPlayers[2]?.socketID === lastPlayedPlayer} />}</div>
-					</div>
-					<div className="col-span-4 d-flex justify-around">{!gameOver && <div className={`text-2xl font-bold ${timeLeft > 10 ? "text-green-600" : timeLeft > 5 ? "text-yellow-600" : "text-red-600"}`}>{timeLeft > 0 ? `Time left : ${timeLeft}s` : "Time's up!"}</div>}</div>
-					{/* third row */}
-					<div className="col-span-2 h-100 d-flex flex-column ">
-						<ChatBox socket={socket} roomCode={roomCode} playerName={localPlayer?.name} />
-					</div>
-					<div className="d-flex flex-col justify-center items-center">
-						{!gameStarted || gameOver ? (
-							localPlayer?.isLeader ? (
-								<Button variant="success" onClick={gameOver ? handleStartAnotherGame : startGame}>
-									{gameOver ? "Start Another Game" : "Start Game"}
+					</section>
+
+					<aside className="powerups-panel">
+						<div className="chat-head">Powerups</div>
+						<ul className="powerups">
+							{POWERUPS.map((powerup) => {
+								const count = enablePowerupsButtonState[powerup.id];
+								const underAccusation = powerup.id === 1 && isLocalPlayerAccused && count > 0;
+								const urgent = (powerup.id === 1 && cleanseIsUrgent) || underAccusation;
+								// Cleanse only ever clears a preorder, so the tooltip
+								// says which of the two put the spotlight on it.
+								const urgentTitle = cleanseIsUrgent ? "You are preordered — cleanse it before that accusation fires" : "You are being accused — cleanse clears the preorder behind it";
+								return (
+									<li key={powerup.id}>
+										<button type="button" className={`powerup${urgent ? " is-urgent" : ""}`} disabled={count === 0 || isWaitingForSeat} onClick={powerupHandlers[powerup.id]} title={urgent ? urgentTitle : powerup.blurb}>
+											<span className="powerup-icon" aria-hidden="true">
+												{powerup.icon}
+											</span>
+											<span className="powerup-name">{powerup.name}</span>
+											{urgent && <span className="powerup-alert">Use me</span>}
+											<span className="powerup-count">{count}</span>
+										</button>
+									</li>
+								);
+							})}
+						</ul>
+					</aside>
+				</div>
+
+				{/* ---- your hand ---- */}
+				<footer className="hand-zone">
+					{!gameStarted || gameOver ? (
+						localPlayer?.isLeader ? (
+							<div className="hand-controls">
+								<Button variant="success" size="lg" onClick={gameOver ? handleStartAnotherGame : startGame}>
+									{gameOver ? "Start another game" : "Start game"}
 								</Button>
-							) : (
-								<p>Waiting for the leader to start the game</p>
-							)
+							</div>
 						) : (
-							<DroppableArea
-								id="your-cards"
-								items={Array.isArray(yourCards) ? yourCards : []} // Ensure items is always an array
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-									position: "relative",
-									width: "100%",
-									maxWidth: "800px",
-									padding: "10px 0",
-									backgroundColor: "var(--droppable-bg)",
-									margin: "10px auto",
-									minHeight: "100px",
-									cursor: "default",
-								}}
-								customDroppableAreaLabel={"Drag your cards here to keep them in your hand"}
-							/>
-						)}
-						{/* {console.log("isNewTurn", isNewTurn, " localPlayerHasTurn", localPlayerHasTurn)} */}
-						{isNewTurn && localPlayerHasTurn ? (
-							<div className="d-flex justify-center items-center gap-2 p-2 mb-2 bg-amber-200 text-blue-950">
-								<label htmlFor="newSelectedCardToPlay">Ech Habetet : </label>
+							<p className="waiting-note m-0">
+								Waiting for the leader to start the game
+								<span className="dots">
+									<span />
+									<span />
+									<span />
+								</span>
+							</p>
+						)
+					) : (
+						<DroppableArea id="your-cards" items={Array.isArray(yourCards) ? yourCards : []} hint="Drag your cards here to keep them in your hand" />
+					)}
+
+					<div className="hand-controls">
+						{isNewTurn && localPlayerHasTurn && (
+							<div className="declare-box">
+								<label htmlFor="newSelectedCardToPlay">Ech Habetet :</label>
 								<select id="newSelectedCardToPlay">
 									{["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"].map((card) => (
 										<option key={card} value={card}>
-											{(() => {
-												switch (card) {
-													case "A":
-														return "Ace";
-													case "J":
-														return "Jack";
-													case "Q":
-														return "Queen";
-													case "K":
-														return "King";
-													default:
-														return card;
-												}
-											})()}
+											{CARD_LABELS[card] ?? card}
 										</option>
 									))}
 								</select>
 							</div>
-						) : null}
-						<div className="d-flex justify-center items-center gap-2">
-							<Button variant="success" disabled={!localPlayerHasTurn || cardsToPlay.length === 0} onClick={handleConfirmTurn}>
-								Confirm
-							</Button>
-							<Button variant="danger" disabled={cardsToPlay.length === 0} onClick={handleCancelTurn}>
-								Cancel
-							</Button>
-						</div>
+						)}
+						<Button variant="success" disabled={!localPlayerHasTurn || cardsToPlay.length === 0 || isWaitingForSeat} onClick={handleConfirmTurn}>
+							Confirm move
+						</Button>
+						<Button variant="danger" disabled={cardsToPlay.length === 0} onClick={handleCancelTurn}>
+							Cancel
+						</Button>
 					</div>
-					<div>
-						<ul className="d-flex flex-column gap-4 justify-center" style={{height: "100%"}}>
-							{/* <li>
-								<Button disabled={enablePowerupsButtonState[0] === 0} onClick={handleShieldPowerup} title="Protect yourself from the next accusation">
-									Shield : {enablePowerupsButtonState[0]}
-								</Button>
-							</li> */}
-							<li>
-								<Button disabled={enablePowerupsButtonState[0] === 0} onClick={handleTrueVisionPowerup} title="See the last played cards' true values">
-									True Vision : {enablePowerupsButtonState[0]}
-								</Button>
-							</li>
-							<li>
-								<Button disabled={enablePowerupsButtonState[1] === 0} onClick={handleCleansePowerup} title="Remove all preorders on you">
-									Cleanse : {enablePowerupsButtonState[1]}
-								</Button>
-							</li>
-							<li>
-								<Button disabled={enablePowerupsButtonState[2] === 0} onClick={handleSkipPlayerPowerup} title="Skip the current player's turn">
-									Skip a player : {enablePowerupsButtonState[2]}
-								</Button>
-							</li>
-						</ul>
-					</div>
-				</div>
+				</footer>
+
 				<LastCardModal show={showLastCardModal} onHide={() => setShowLastCardModal(false)} lastCardInfo={lastCardPresented} />
+
+				{/* Inside the shell so it picks up the room's theme tokens. */}
+				<PowerupAnimation
+					roll={powerupRoll}
+					onAnimationComplete={() => {
+						if (powerupRoll) {
+							const wonPowerup = powerupById(powerupRoll.powerUpID);
+							setEventMessage(`${powerupRoll.isMine ? "You" : powerupRoll.accuserName} won ${wonPowerup?.name ?? "a powerup"} for calling ${powerupRoll.accusedName ?? "that"} bluff.`);
+						}
+						setPowerupRoll(null);
+					}}
+				/>
 			</div>
-			<DragOverlay>{activeId ? <SortableItem id={activeId} title={activeId} /> : null}</DragOverlay>
-			<PowerupAnimation
-				isVisible={showPowerupAnimation}
-				powerUpID={powerupAnimationId}
-				onAnimationComplete={() => {
-					setShowPowerupAnimation(false);
-					setEventMessage(`Powerup ${powerupAnimationName} granted! to ${lastPowerupReceiver}`);
-				}}
-			/>
+			<DragOverlay>
+				{activeId ? (
+					<div className="drag-overlay">
+						<PlayableCard cardType={activeId} />
+					</div>
+				) : null}
+			</DragOverlay>
 			<PlayerSelectionModal show={showPlayerSelection} onHide={() => setShowPlayerSelection(false)} players={otherPlayers} onSelect={handlePlayerSelect} actionType={currentPowerupAction} />
 			<CardsRevealModal show={showCardsReveal} onHide={() => setShowCardsReveal(false)} cards={revealedCards.cards} playerName={revealedCards.playerName} />
 			<QuitGameModal show={showQuitModal} onHide={() => setShowQuitModal(false)} onConfirm={handleConfirmQuit} />
-			<DisconnectModal show={showDisconnectModal} playerName={disconnectedPlayer?.name} />
 			<SettingsModal show={showSettings} onHide={() => setShowSettings(false)} currentTheme={theme} onThemeChange={handleThemeChange} />
 			<GameOverModal show={showGameOverModal} onHide={() => setShowGameOverModal(false)} winner={winner} otherPlayers={orderedRestOfPlayersForGamOver} />
 		</DndContext>

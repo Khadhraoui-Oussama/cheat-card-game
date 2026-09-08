@@ -132,46 +132,4 @@ table {
 	border-spacing: 0;
 }
 
-/* popup for creating a game  */
-.popup {
-	background-color: #2A2F4F;
-	border: yellow solid 3px;
-	color: antiquewhite;
-	width: 50vw;
-	max-width: 800px;
-}
-
-.playerBox {
-	display: inline-flex;
-	align-items: center;
-	border: 1px solid #ccc;
-	padding: 10px;
-	margin: 10px 0;
-	border-radius: 5px;
-}
-
-.playerBox p {
-	margin: 0 10px 0 0;
-}
-
-.playerBox img {
-	width: 50px;
-	height: 50px;
-	border-radius: 50%;
-}
-
-
-/* .popup-container {
-	display: flex;
-	background-color: aquamarine;
-	inset: 0;
-	position: fixed;
-
-} */
-
-/*
-#2A2F4F
-#917FB3
-#E5BEEC
-#FDE2F3
-*/
+/* Component + theme styles live in src/styles/ui.css (loaded last). */

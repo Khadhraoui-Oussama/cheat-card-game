@@ -1,48 +1,54 @@
-import {Stack} from "react-bootstrap";
 import AvatarSelect from "./AvatarSelect";
 import {useContext} from "react";
 import {PlayerContext} from "../contexts/PlayerContext";
 
 const PlayerInfoSelect = () => {
-	const {player, setPlayer, selectedAvatarPath, setSelectedAvatarPath} = useContext(PlayerContext);
+	const {player, setPlayer, setSelectedAvatarPath} = useContext(PlayerContext);
+
+	const handleGenderChange = (gender) => {
+		setPlayer({...player, avatar: "", gender});
+		setSelectedAvatarPath("");
+	};
+
 	return (
 		<>
-			<p>Player Name</p>
-			<input
-				type="text"
-				name="player-name"
-				id="player-name"
-				style={{background: "#ddebf0"}}
-				placeholder="Choose your name"
-				onChange={(e) => {
-					setPlayer({...player, name: e.target.value});
-					setSelectedAvatarPath("");
-				}}
-			/>
-			<p>Choose your avatar</p>
-			<Stack direction="horizontal">
-				<label>
-					<input
-						id="male"
-						name="gender"
-						type="radio"
-						value="male"
-						defaultChecked
-						onChange={(e) => {
-							setPlayer({...player, avatar: "", gender: e.target.value});
-							setSelectedAvatarPath("");
-						}}
-					/>
-					Male
+			<div>
+				<label className="field-label" htmlFor="player-name">
+					Your name
 				</label>
-				<label>
-					<input id="female" name="gender" type="radio" value="female" onChange={(e) => setPlayer({...player, avatar: "", gender: e.target.value})} />
-					Female
-				</label>
-			</Stack>
-			<Stack direction="horizontal" className="mx-auto w-100 flex-wrap">
-				<AvatarSelect />
-			</Stack>
+				<input
+					type="text"
+					name="player-name"
+					id="player-name"
+					className="form-control"
+					maxLength={20}
+					autoComplete="off"
+					value={player.name}
+					placeholder="e.g. Sami"
+					onChange={(e) => {
+						setPlayer({...player, name: e.target.value});
+					}}
+				/>
+			</div>
+
+			<div>
+				<div className="d-flex align-items-center justify-content-between mb-2">
+					<span className="field-label mb-0">Your avatar</span>
+					<div className="segmented">
+						<label className={player.gender === "male" ? "active" : ""}>
+							<input id="male" name="gender" type="radio" value="male" checked={player.gender === "male"} onChange={(e) => handleGenderChange(e.target.value)} />
+							Male
+						</label>
+						<label className={player.gender === "female" ? "active" : ""}>
+							<input id="female" name="gender" type="radio" value="female" checked={player.gender === "female"} onChange={(e) => handleGenderChange(e.target.value)} />
+							Female
+						</label>
+					</div>
+				</div>
+				<div className="avatar-grid">
+					<AvatarSelect />
+				</div>
+			</div>
 		</>
 	);
 };

@@ -1,9 +1,18 @@
 import {useSortable} from "@dnd-kit/sortable";
 import {CSS} from "@dnd-kit/utilities";
 import PlayableCard from "./PlayableCard";
-import {Col} from "react-bootstrap";
 
-const SortableItem = ({title, index, parent, hidden}) => {
+/*
+	The fan is built out of layout (flex order + a negative margin from
+	--card-spread), never out of a CSS transform.
+
+	dnd-kit measures a draggable with getTransformAgnosticClientRect, which
+	strips the element's own transform before recording where it is. A card
+	positioned by transform therefore measures as if it were still at the
+	untransformed spot, and the drag overlay is placed there instead of under
+	the pointer. The transform slot here is left for dnd-kit alone.
+*/
+const SortableItem = ({title, index = 0, parent, hidden}) => {
 	const {isDragging, attributes, listeners, setNodeRef, transform, transition} = useSortable({
 		id: title,
 		data: {title, parent, index},
@@ -13,19 +22,14 @@ const SortableItem = ({title, index, parent, hidden}) => {
 		display: hidden ? "none" : "block",
 		transform: CSS.Translate.toString(transform),
 		transition,
-		position: "absolute", // Enables stacking
-		left: `${index * 1.2}rem`, // if we remove the line : left: `${index * 1.1}rem` we get solitaire cards stacking
-		//TODO : FIX THE CARDS NOT BEING IN THE MIDDLE OF THE DROPPABLE AREA
-		top: 0,
-		margin: "auto",
-		zIndex: isDragging ? "9999" : "auto",
-		opacity: isDragging ? ".3" : "1",
+		zIndex: isDragging ? 9999 : index,
+		opacity: isDragging ? 0.3 : 1,
 	};
 
 	return (
-		<Col style={style} {...listeners} {...attributes} ref={setNodeRef}>
+		<div className="sortable-card" style={style} {...listeners} {...attributes} ref={setNodeRef}>
 			<PlayableCard cardType={title} />
-		</Col>
+		</div>
 	);
 };
 
