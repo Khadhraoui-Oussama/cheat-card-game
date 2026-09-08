@@ -68,7 +68,7 @@ const GameBoardGrid = () => {
 	// dnd-kit sensor setup
 	const mouseSensor = useSensor(MouseSensor);
 	const touchSensor = useSensor(TouchSensor, {
-		activationConstraint: {delay: 180, tolerance: 8},
+		activationConstraint: {delay: 100, tolerance: 20},
 	});
 	const keyboardSensor = useSensor(KeyboardSensor, {
 		coordinateGetter: sortableKeyboardCoordinates,

@@ -23,6 +23,7 @@ const App = () => {
 
 	useEffect(() => {
 		//problem in local backend logic works on prod backe,d nicely
+		
 		const backendUrl = import.meta.env.VITE_PROD_BACKEND_URL;
 		//const backendUrl = import.meta.env.VITE_DEV_BACKEND_URL;
 		// console.log(backendUrl);

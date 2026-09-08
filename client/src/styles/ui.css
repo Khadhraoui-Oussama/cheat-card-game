@@ -1391,12 +1391,16 @@ label.option-row {
 	transition: transform var(--t-fast), box-shadow var(--t-fast);
 	line-height: 0;
 	user-select: none;
+	-webkit-user-select: none;
+	touch-action: none;
 }
 
 .playable-card img {
 	width: 100%;
 	display: block;
 	pointer-events: none;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 /*
